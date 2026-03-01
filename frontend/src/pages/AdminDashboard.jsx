@@ -338,28 +338,28 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <Select 
-                value={filters.status} 
-                onValueChange={(v) => setFilters({ ...filters, status: v })}
+                value={filters.status || "all"} 
+                onValueChange={(v) => setFilters({ ...filters, status: v === "all" ? "" : v })}
               >
                 <SelectTrigger className="w-[150px]" data-testid="filter-status">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
               <Select 
-                value={filters.service_type} 
-                onValueChange={(v) => setFilters({ ...filters, service_type: v })}
+                value={filters.service_type || "all"} 
+                onValueChange={(v) => setFilters({ ...filters, service_type: v === "all" ? "" : v })}
               >
                 <SelectTrigger className="w-[180px]" data-testid="filter-service">
                   <SelectValue placeholder="All Services" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Services</SelectItem>
+                  <SelectItem value="all">All Services</SelectItem>
                   <SelectItem value="fresh_registration">Fresh Registration</SelectItem>
                   <SelectItem value="renewal">Renewal</SelectItem>
                   <SelectItem value="get_first_id">Get First ID</SelectItem>
