@@ -611,7 +611,7 @@ async def get_all_appointments(
             {"reference_number": {"$regex": search, "$options": "i"}}
         ]
     
-    appointments = await db.appointments.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    appointments = await db.appointments.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
     return appointments
 
 @api_router.get("/admin/stats")
@@ -622,7 +622,7 @@ async def get_appointment_stats(authorization: Optional[str] = None):
         verify_token(token)
     
     # Get all appointments
-    appointments = await db.appointments.find({}, {"_id": 0}).to_list(10000)
+    appointments = await db.appointments.find({}, {"_id": 0}).to_list(None)
     
     total = len(appointments)
     pending = len([a for a in appointments if a.get('status') == 'confirmed'])
