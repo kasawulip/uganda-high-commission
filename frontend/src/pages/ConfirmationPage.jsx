@@ -127,8 +127,10 @@ export default function ConfirmationPage() {
       
       const noticeText = [
         "You are advised to visit the NIRA website and complete the pre-registration",
-        "process as this shall help you to be served faster when you physically",
-        "visit the High Commission.",
+        "process for this service as this shall help you to be served faster when you",
+        "physically visit the High Commission. Upon successful pre-registration, you",
+        "will receive a pre-registration ID that you shall as well come along with",
+        "during the physical visit to the High Commission.",
         "",
         "Please bring this confirmation letter along with all required documents",
         "on your appointment date.",
