@@ -1,15 +1,19 @@
 # National ID Appointment Booking System - PRD
 
 ## Original Problem Statement
-Build a web-based application for booking appointments for National ID registration at the Uganda High Commission in London. Users enter their details (Surname, First Name, Email, UK/Uganda phone), choose a service type (Fresh Registration, Renewal, GetFirst ID, Change of Particulars, Card Pick-up), view requirements for each service, select an appointment date (Tue/Wed/Fri only), and receive email confirmation + downloadable PDF.
+Build a web-based application for booking appointments for National ID registration at the Uganda High Commission in London. Users enter their details (Surname, First Name, Email, UK/Uganda phone), choose a service type (Fresh Registration, Renewal, GetFirst ID, Change of Particulars, Card Pick-up), view requirements for each service, select an appointment date (Tue/Wed/Fri only), and receive email confirmation + downloadable PDF. Users can also manage (reschedule/cancel) existing appointments.
 
 ## Architecture
 
 ### Backend (FastAPI + MongoDB)
-- **Models**: Appointment, AdminUser
+- **Models**: Appointment (with version field for optimistic locking), AdminUser, RescheduleRequest
+- **Race Condition Handling**: Atomic operations with retry logic, unique index on reference_number
 - **API Endpoints**:
-  - `POST /api/appointments` - Create appointment (guest)
-  - `GET /api/appointments/:id` - Get single appointment
+  - `POST /api/appointments` - Create appointment (with race condition handling)
+  - `GET /api/appointments/:id` - Get single appointment by ID
+  - `GET /api/appointments/by-reference/:ref` - Get appointment by reference number
+  - `PATCH /api/appointments/:id/reschedule` - Reschedule appointment (user self-service)
+  - `PATCH /api/appointments/:id/cancel` - Cancel appointment (user self-service)
   - `GET /api/appointments/:id/pdf` - Download PDF
   - `POST /api/admin/login` - Admin authentication
   - `GET /api/admin/appointments` - List all (admin, no limit)
@@ -21,9 +25,10 @@ Build a web-based application for booking appointments for National ID registrat
 
 ### Frontend (React + Tailwind CSS + Shadcn UI)
 - **Pages**:
-  - Landing Page - Hero + 5 Services overview + Admin Portal (top right)
+  - Landing Page - Hero + 5 Services overview + Admin Portal (top right) + Manage Appointment
   - Booking Flow - Multi-step form (Personal Details → Service Selection → Date Selection)
   - Confirmation Page - Success view + PDF download
+  - Manage Appointment Page - View, Reschedule, Cancel existing appointments
   - Admin Login
   - Admin Dashboard - Stats + Appointments table (no limit)
 
@@ -48,12 +53,14 @@ Build a web-based application for booking appointments for National ID registrat
 - [x] No appointment limit in admin view
 - [x] CSV export functionality
 - [x] Mobile-first responsive design
+- [x] Race condition handling for concurrent submissions
+- [x] User self-service: Manage appointments (reschedule/cancel)
 
 ## What's Been Implemented (Jan 2026)
 - ✅ Landing page with hero section and 5 services display
 - ✅ Admin Portal button at top right corner
 - ✅ Different colored icons for each service
-- ✅ Title changed to "National ID Services"
+- ✅ Title "National ID Services" with updated message
 - ✅ Multi-step booking form (Personal Details → Service → Date)
 - ✅ Card Pick-up service with NIN/Application Number field
 - ✅ Phone validation for both UK and Uganda numbers
@@ -62,6 +69,8 @@ Build a web-based application for booking appointments for National ID registrat
 - ✅ Download button: "Download Appointment Confirmation Letter"
 - ✅ Mobile-first responsive design
 - ✅ Admin dashboard with no appointment limit
+- ✅ Race condition handling with optimistic locking
+- ✅ Manage Appointment feature (reschedule/cancel by reference number)
 
 ## Prioritized Backlog
 
@@ -71,12 +80,11 @@ Build a web-based application for booking appointments for National ID registrat
 ### P1 - Important
 - [ ] Add appointment time slots (not just dates)
 - [ ] Add email reminders before appointment date
-- [ ] Add appointment cancellation by user (via email link)
+- [ ] Add authentication to admin stats endpoint
 
 ### P2 - Nice to Have
 - [ ] Add SMS notifications via Twilio
 - [ ] Add admin user management
-- [ ] Add appointment rescheduling
 - [ ] Add reporting/analytics dashboard
 - [ ] Add print-friendly appointment slip
 
