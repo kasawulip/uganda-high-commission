@@ -59,6 +59,19 @@ const steps = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [appointmentId, setAppointmentId] = useState("");
+  const [searchError, setSearchError] = useState("");
+
+  const handleManageAppointment = () => {
+    if (!appointmentId.trim()) {
+      setSearchError("Please enter your Appointment Reference Number");
+      return;
+    }
+    setSearchError("");
+    setManageDialogOpen(false);
+    navigate(`/manage/${appointmentId.trim()}`);
+  };
 
   return (
     <div className="min-h-screen">
