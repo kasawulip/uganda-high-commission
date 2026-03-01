@@ -208,6 +208,14 @@ SERVICE_REQUIREMENTS = {
         "requirements": [
             "For full details on the particular requirements for the change you desire to undertake, please visit the NIRA website."
         ]
+    },
+    ServiceType.CARD_PICKUP: {
+        "title": "Card Pick-up",
+        "description": "This service is for persons who have completed the registration process and their National ID card is ready for collection.",
+        "requirements": [
+            "Your National Identification Number (NIN) or Application Number.",
+            "A valid form of identification for verification."
+        ]
     }
 }
 
