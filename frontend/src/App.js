@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import LandingPage from "@/pages/LandingPage";
 import BookingPage from "@/pages/BookingPage";
 import ConfirmationPage from "@/pages/ConfirmationPage";
+import ManageAppointment from "@/pages/ManageAppointment";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
 
@@ -15,6 +16,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/book" element={<BookingPage />} />
           <Route path="/confirmation/:appointmentId" element={<ConfirmationPage />} />
+          <Route path="/manage/:appointmentId" element={<ManageAppointment />} />
           <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Routes>
