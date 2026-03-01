@@ -406,6 +406,171 @@ class NIDAppointmentTester:
         # Restore token
         self.token = original_token
 
+    def test_get_appointment_by_reference(self):
+        """Test getting appointment by reference number"""
+        if not self.appointment_id:
+            self.log_result("Get Appointment by Reference", False, "No appointment ID available")
+            return
+            
+        # First get appointment to get reference number
+        success, data = self.run_test(
+            "Get Appointment for Reference",
+            "GET", 
+            f"/appointments/{self.appointment_id}",
+            200
+        )
+        
+        if not success or 'reference_number' not in data:
+            self.log_result("Get Appointment by Reference", False, "Could not get reference number")
+            return
+            
+        reference_number = data['reference_number']
+        
+        # Now test getting by reference
+        success, ref_data = self.run_test(
+            "Get Appointment by Reference Number",
+            "GET",
+            f"/appointments/by-reference/{reference_number}",
+            200
+        )
+        
+        if success and ref_data.get("id") == self.appointment_id:
+            self.log_result("Reference Number Lookup Validation", True)
+        else:
+            self.log_result("Reference Number Lookup Validation", False, "ID mismatch in reference lookup")
+    
+    def test_reschedule_appointment(self):
+        """Test rescheduling appointment"""
+        if not self.appointment_id:
+            self.log_result("Reschedule Appointment", False, "No appointment ID available")
+            return
+            
+        # Get a valid future date for reschedule
+        new_date = date.today() + timedelta(days=14)  
+        while new_date.weekday() not in [1, 2, 4]:  # Tue, Wed, Fri
+            new_date += timedelta(days=1)
+            
+        reschedule_data = {
+            "new_date": new_date.isoformat()
+        }
+        
+        success, response = self.run_test(
+            "Reschedule Appointment", 
+            "PATCH",
+            f"/appointments/{self.appointment_id}/reschedule",
+            200,
+            data=reschedule_data
+        )
+        
+        if success:
+            # Verify the date was updated
+            check_success, data = self.run_test(
+                "Verify Reschedule Update",
+                "GET",
+                f"/appointments/{self.appointment_id}",
+                200
+            )
+            
+            if check_success and data.get("appointment_date") == new_date.isoformat():
+                self.log_result("Reschedule Date Verification", True)
+            else:
+                self.log_result("Reschedule Date Verification", False, f"Date is {data.get('appointment_date')}, expected {new_date.isoformat()}")
+
+    def test_cancel_appointment(self):
+        """Test canceling appointment"""
+        if not self.appointment_id:
+            self.log_result("Cancel Appointment", False, "No appointment ID available")
+            return
+            
+        success, response = self.run_test(
+            "Cancel Appointment",
+            "PATCH", 
+            f"/appointments/{self.appointment_id}/cancel",
+            200
+        )
+        
+        if success:
+            # Verify the status was updated  
+            check_success, data = self.run_test(
+                "Verify Cancel Status",
+                "GET",
+                f"/appointments/{self.appointment_id}",
+                200
+            )
+            
+            if check_success and data.get("status") == "cancelled":
+                self.log_result("Cancel Status Verification", True)
+            else:
+                self.log_result("Cancel Status Verification", False, f"Status is {data.get('status')}, expected 'cancelled'")
+
+    def test_race_condition_handling(self):
+        """Test race condition handling with concurrent submissions"""
+        import threading
+        import time
+        
+        # Get a valid future date
+        appointment_date = date.today() + timedelta(days=7)
+        while appointment_date.weekday() not in [1, 2, 4]:  # Tue, Wed, Fri
+            appointment_date += timedelta(days=1)
+            
+        # Create multiple appointment requests with similar data to test uniqueness
+        base_data = {
+            "surname": "RaceTest", 
+            "first_name": "User",
+            "email": f"racetest{uuid.uuid4().hex[:8]}@example.com",
+            "phone": "+447123456789",
+            "service_type": "renewal",
+            "appointment_date": appointment_date.isoformat()
+        }
+        
+        results = []
+        
+        def create_appointment(data, result_list):
+            try:
+                url = f"{self.base_url}/appointments"
+                headers = {'Content-Type': 'application/json'}
+                response = requests.post(url, json=data, headers=headers, timeout=10)
+                result_list.append({
+                    "status_code": response.status_code,
+                    "response": response.json() if response.status_code == 200 else response.text
+                })
+            except Exception as e:
+                result_list.append({
+                    "status_code": 0,
+                    "error": str(e)
+                })
+        
+        # Create 3 concurrent requests with slightly different emails
+        threads = []
+        for i in range(3):
+            data = base_data.copy()
+            data["email"] = f"racetest{i}{uuid.uuid4().hex[:6]}@example.com"
+            thread = threading.Thread(target=create_appointment, args=(data, results))
+            threads.append(thread)
+            
+        # Start all threads simultaneously
+        for thread in threads:
+            thread.start()
+            
+        # Wait for all to complete
+        for thread in threads:
+            thread.join()
+        
+        # Analyze results
+        successful = [r for r in results if r.get("status_code") == 200]
+        if len(successful) >= 1:  # At least one should succeed
+            self.log_result("Race Condition - Basic Handling", True)
+            
+            # Check if reference numbers are unique
+            ref_numbers = [r["response"].get("reference_number") for r in successful if isinstance(r.get("response"), dict)]
+            unique_refs = set(ref_numbers)
+            if len(ref_numbers) == len(unique_refs):
+                self.log_result("Race Condition - Unique References", True)
+            else:
+                self.log_result("Race Condition - Unique References", False, "Duplicate reference numbers generated")
+        else:
+            self.log_result("Race Condition - Basic Handling", False, f"No successful appointments from {len(results)} attempts")
+
     def run_all_tests(self):
         """Run all tests in sequence"""
         print("=" * 60)
