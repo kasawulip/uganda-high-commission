@@ -1,7 +1,7 @@
 # National ID Appointment Booking System - PRD
 
 ## Original Problem Statement
-Build a web-based application for booking appointments for National ID registration at the Uganda High Commission in London. Users enter their details (Surname, First Name, Email, UK phone), choose a service type (Fresh Registration, Renewal, GetFirst ID, Change of Particulars), view requirements for each service, select an appointment date (Tue/Wed/Fri only), and receive email confirmation + downloadable PDF.
+Build a web-based application for booking appointments for National ID registration at the Uganda High Commission in London. Users enter their details (Surname, First Name, Email, UK/Uganda phone), choose a service type (Fresh Registration, Renewal, GetFirst ID, Change of Particulars, Card Pick-up), view requirements for each service, select an appointment date (Tue/Wed/Fri only), and receive email confirmation + downloadable PDF.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ Build a web-based application for booking appointments for National ID registrat
   - `GET /api/appointments/:id` - Get single appointment
   - `GET /api/appointments/:id/pdf` - Download PDF
   - `POST /api/admin/login` - Admin authentication
-  - `GET /api/admin/appointments` - List all (admin)
+  - `GET /api/admin/appointments` - List all (admin, no limit)
   - `GET /api/admin/stats` - Get statistics
   - `PATCH /api/admin/appointments/:id` - Update status
   - `DELETE /api/admin/appointments/:id` - Delete appointment
@@ -21,11 +21,11 @@ Build a web-based application for booking appointments for National ID registrat
 
 ### Frontend (React + Tailwind CSS + Shadcn UI)
 - **Pages**:
-  - Landing Page - Hero + Services overview
+  - Landing Page - Hero + 5 Services overview + Admin Portal (top right)
   - Booking Flow - Multi-step form (Personal Details → Service Selection → Date Selection)
   - Confirmation Page - Success view + PDF download
   - Admin Login
-  - Admin Dashboard - Stats + Appointments table
+  - Admin Dashboard - Stats + Appointments table (no limit)
 
 ## User Personas
 1. **Ugandan Diaspora in UK** - Need National ID services, want easy online booking
@@ -34,30 +34,34 @@ Build a web-based application for booking appointments for National ID registrat
 ## Core Requirements (Static)
 - [x] Guest booking (no login required)
 - [x] Multi-step booking form with validation
+- [x] 5 Service types: Fresh Registration, Renewal, Get First ID, Change of Particulars, Card Pick-up
+- [x] Card Pick-up requires NIN/Application Number
 - [x] Service selection with requirements display
 - [x] Calendar with restricted dates (Tue/Wed/Fri only)
 - [x] UK and Uganda public holidays disabled
+- [x] Phone validation for UK (+44) and Uganda (+256)
+- [x] International name validation (security)
 - [x] PDF generation (client-side with jsPDF)
 - [x] Admin authentication (JWT)
 - [x] Admin dashboard with stats
 - [x] Appointment management (view, filter, update status, delete)
+- [x] No appointment limit in admin view
 - [x] CSV export functionality
+- [x] Mobile-first responsive design
 
 ## What's Been Implemented (Jan 2026)
-- ✅ Landing page with hero section and services display
+- ✅ Landing page with hero section and 5 services display
+- ✅ Admin Portal button at top right corner
+- ✅ Different colored icons for each service
+- ✅ Title changed to "National ID Services"
 - ✅ Multi-step booking form (Personal Details → Service → Date)
-- ✅ Service requirements display for all 4 service types
-- ✅ Calendar component with date restrictions
-- ✅ UK and Uganda holidays (2025-2026) blocked
-- ✅ Appointment creation API
-- ✅ PDF generation (both server-side and client-side)
-- ✅ Confirmation page with PDF download
-- ✅ Admin login with JWT authentication
-- ✅ Admin dashboard with statistics cards
-- ✅ Appointments table with search, filter, pagination
-- ✅ Status management (confirm, complete, cancel)
-- ✅ Delete appointments
-- ✅ CSV export
+- ✅ Card Pick-up service with NIN/Application Number field
+- ✅ Phone validation for both UK and Uganda numbers
+- ✅ International name validation (security compliant)
+- ✅ Updated Important Notice with pre-registration ID info
+- ✅ Download button: "Download Appointment Confirmation Letter"
+- ✅ Mobile-first responsive design
+- ✅ Admin dashboard with no appointment limit
 
 ## Prioritized Backlog
 
