@@ -493,6 +493,13 @@ async def create_appointment(appointment_data: AppointmentCreate):
             detail="Invalid appointment date. Appointments are only available on Tuesday, Wednesday, and Friday, excluding public holidays."
         )
     
+    # Validate NIN for card pickup
+    if appointment_data.service_type == ServiceType.CARD_PICKUP and not appointment_data.nin_or_application_number:
+        raise HTTPException(
+            status_code=400,
+            detail="NIN or Application Number is required for Card Pick-up service."
+        )
+    
     # Create appointment object
     appointment = Appointment(
         surname=appointment_data.surname,
@@ -500,7 +507,8 @@ async def create_appointment(appointment_data: AppointmentCreate):
         email=appointment_data.email,
         phone=appointment_data.phone,
         service_type=appointment_data.service_type,
-        appointment_date=appointment_data.appointment_date.isoformat()
+        appointment_date=appointment_data.appointment_date.isoformat(),
+        nin_or_application_number=appointment_data.nin_or_application_number
     )
     
     # Save to database
