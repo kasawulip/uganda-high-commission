@@ -1,36 +1,43 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, RefreshCw, CreditCard, Edit3, Clock, MapPin, Phone, ChevronRight, Shield, CheckCircle } from "lucide-react";
+import { UserPlus, RefreshCw, CreditCard, Edit3, Clock, MapPin, Phone, ChevronRight, Shield, CheckCircle, Package } from "lucide-react";
 
 const services = [
   {
     id: "fresh_registration",
     title: "Fresh Registration",
     description: "First-time applicants for National ID",
-    icon: FileText,
-    color: "bg-blue-500"
+    icon: UserPlus,
+    color: "bg-blue-600"
   },
   {
     id: "renewal",
     title: "Renewal of National ID",
     description: "Renew your existing National ID",
     icon: RefreshCw,
-    color: "bg-green-500"
+    color: "bg-emerald-500"
   },
   {
     id: "get_first_id",
     title: "Get First ID",
     description: "For those with NIN but no physical ID card",
     icon: CreditCard,
-    color: "bg-purple-500"
+    color: "bg-violet-500"
   },
   {
     id: "change_of_particulars",
     title: "Change of Particulars",
     description: "Update your personal details",
     icon: Edit3,
-    color: "bg-orange-500"
+    color: "bg-amber-500"
+  },
+  {
+    id: "card_pickup",
+    title: "Card Pick-up",
+    description: "Collect your ready National ID card",
+    icon: Package,
+    color: "bg-rose-500"
   }
 ];
 
@@ -46,40 +53,44 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="hero-bg relative min-h-[80vh] flex items-center">
+      <section className="hero-bg relative min-h-[70vh] md:min-h-[80vh] flex items-center">
         <div className="hero-overlay absolute inset-0" />
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        {/* Admin Portal Link - Top Right */}
+        <div className="absolute top-4 right-4 z-20">
+          <Button 
+            data-testid="admin-portal-top-btn"
+            variant="ghost"
+            onClick={() => navigate("/admin")}
+            className="text-white/80 hover:text-white hover:bg-white/10 text-sm"
+          >
+            <Shield className="w-4 h-4 mr-2" />
+            Admin Portal
+          </Button>
+        </div>
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
           <div className="max-w-3xl animate-fade-in">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-[#FCDC04] rounded-full flex items-center justify-center">
-                <Shield className="w-6 h-6 text-[#1A1A1A]" />
+            <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-[#FCDC04] rounded-full flex items-center justify-center">
+                <Shield className="w-5 h-5 md:w-6 md:h-6 text-[#1A1A1A]" />
               </div>
-              <span className="text-[#FCDC04] font-semibold tracking-wide">OFFICIAL SERVICE</span>
+              <span className="text-[#FCDC04] font-semibold tracking-wide text-sm md:text-base">OFFICIAL SERVICE</span>
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
-              National ID Registration
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6 leading-tight">
+              National ID Services
               <span className="block text-[#FCDC04]">Appointment Booking</span>
             </h1>
-            <p className="text-lg text-gray-300 mb-8 max-w-2xl">
+            <p className="text-base md:text-lg text-gray-300 mb-6 md:mb-8 max-w-2xl">
               Book your appointment for National ID services at the Uganda High Commission, London. 
               Quick, easy, and secure online booking.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
               <Button 
                 data-testid="book-appointment-btn"
                 onClick={() => navigate("/book")}
-                className="btn-primary text-lg px-8 py-6"
+                className="btn-primary text-base md:text-lg px-6 md:px-8 py-4 md:py-6"
               >
                 Book Appointment
                 <ChevronRight className="ml-2 w-5 h-5" />
-              </Button>
-              <Button 
-                data-testid="admin-login-btn"
-                variant="outline"
-                onClick={() => navigate("/admin")}
-                className="btn-secondary text-lg px-8 py-6"
-              >
-                Admin Portal
               </Button>
             </div>
           </div>
@@ -87,15 +98,15 @@ export default function LandingPage() {
       </section>
 
       {/* Services Section */}
-      <section className="py-16 md:py-24 bg-white">
+      <section className="py-12 md:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-[#1A1A1A] mb-4">Our Services</h2>
-            <p className="text-lg text-[#4B5563] max-w-2xl mx-auto">
+          <div className="text-center mb-8 md:mb-12">
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#1A1A1A] mb-3 md:mb-4">Our Services</h2>
+            <p className="text-base md:text-lg text-[#4B5563] max-w-2xl mx-auto">
               Select the service you require. Each service has specific requirements you'll need to prepare.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 stagger-children">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 stagger-children">
             {services.map((service) => (
               <Card 
                 key={service.id}
