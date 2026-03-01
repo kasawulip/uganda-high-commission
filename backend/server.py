@@ -515,7 +515,6 @@ async def create_appointment(appointment_data: AppointmentCreate):
     while retry_count < max_retries:
         try:
             # Generate unique reference number with timestamp for uniqueness
-            timestamp = datetime.now().strftime('%Y%m%d%H%M%S%f')
             unique_id = str(uuid.uuid4())[:8].upper()
             reference_number = f"UHC-{datetime.now().strftime('%Y%m%d')}-{unique_id}"
             
