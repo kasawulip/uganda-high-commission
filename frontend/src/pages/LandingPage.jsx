@@ -115,6 +115,54 @@ export default function LandingPage() {
                 Book Appointment
                 <ChevronRight className="ml-2 w-5 h-5" />
               </Button>
+              <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    data-testid="manage-appointment-btn"
+                    variant="outline"
+                    className="btn-secondary text-base md:text-lg px-6 md:px-8 py-4 md:py-6"
+                  >
+                    <CalendarClock className="mr-2 w-5 h-5" />
+                    Manage Appointment
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Manage Your Appointment</DialogTitle>
+                    <DialogDescription>
+                      Enter your Appointment Reference Number to reschedule or cancel your existing appointment.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div>
+                      <Input
+                        data-testid="appointment-id-input"
+                        placeholder="e.g., UHC-20260301-ABC12345"
+                        value={appointmentId}
+                        onChange={(e) => {
+                          setAppointmentId(e.target.value);
+                          if (searchError) setSearchError("");
+                        }}
+                        className={searchError ? "border-red-500" : ""}
+                      />
+                      {searchError && (
+                        <p className="text-red-500 text-sm mt-1">{searchError}</p>
+                      )}
+                    </div>
+                    <Button 
+                      onClick={handleManageAppointment}
+                      className="w-full btn-primary"
+                      data-testid="search-appointment-btn"
+                    >
+                      <Search className="mr-2 w-4 h-4" />
+                      Find Appointment
+                    </Button>
+                    <p className="text-xs text-gray-500 text-center">
+                      Your reference number was sent to your email when you booked.
+                    </p>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>
