@@ -40,7 +40,8 @@ const serviceNames = {
   fresh_registration: "Fresh Registration",
   renewal: "Renewal",
   get_first_id: "Get First ID",
-  change_of_particulars: "Change of Particulars"
+  change_of_particulars: "Change of Particulars",
+  card_pickup: "Card Pick-up"
 };
 
 const statusColors = {
@@ -364,6 +365,7 @@ export default function AdminDashboard() {
                   <SelectItem value="renewal">Renewal</SelectItem>
                   <SelectItem value="get_first_id">Get First ID</SelectItem>
                   <SelectItem value="change_of_particulars">Change of Particulars</SelectItem>
+                  <SelectItem value="card_pickup">Card Pick-up</SelectItem>
                 </SelectContent>
               </Select>
             </div>
