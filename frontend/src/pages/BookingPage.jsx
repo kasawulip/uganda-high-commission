@@ -120,7 +120,8 @@ export default function BookingPage() {
     email: "",
     phone: "",
     service_type: preselectedService || "",
-    appointment_date: null
+    appointment_date: null,
+    nin_or_application_number: ""
   });
 
   const [errors, setErrors] = useState({});
@@ -144,8 +145,16 @@ export default function BookingPage() {
 
   const validateStep1 = () => {
     const newErrors = {};
-    if (!formData.surname.trim()) newErrors.surname = "Surname is required";
-    if (!formData.first_name.trim()) newErrors.first_name = "First name is required";
+    if (!formData.surname.trim()) {
+      newErrors.surname = "Surname is required";
+    } else if (!isValidName(formData.surname)) {
+      newErrors.surname = "Please enter a valid surname (letters, hyphens, and apostrophes only)";
+    }
+    if (!formData.first_name.trim()) {
+      newErrors.first_name = "First name is required";
+    } else if (!isValidName(formData.first_name)) {
+      newErrors.first_name = "Please enter a valid first name (letters, hyphens, and apostrophes only)";
+    }
     if (!formData.email.trim()) {
       newErrors.email = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
@@ -153,8 +162,8 @@ export default function BookingPage() {
     }
     if (!formData.phone.trim()) {
       newErrors.phone = "Phone number is required";
-    } else if (!/^(\+44\d{10}|0\d{10})$/.test(formData.phone.replace(/\s/g, ''))) {
-      newErrors.phone = "Please enter a valid UK phone number (e.g., +447123456789 or 07123456789)";
+    } else if (!isValidPhone(formData.phone)) {
+      newErrors.phone = "Please enter a valid UK (+44) or Uganda (+256) phone number";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -162,7 +171,13 @@ export default function BookingPage() {
 
   const validateStep2 = () => {
     const newErrors = {};
-    if (!formData.service_type) newErrors.service_type = "Please select a service";
+    if (!formData.service_type) {
+      newErrors.service_type = "Please select a service";
+    }
+    // If card pickup is selected, NIN or Application Number is required
+    if (formData.service_type === "card_pickup" && !formData.nin_or_application_number.trim()) {
+      newErrors.nin_or_application_number = "NIN or Application Number is required for Card Pick-up";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
