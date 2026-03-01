@@ -89,10 +89,19 @@ class NIDAppointmentTester:
         """Test services endpoint"""
         success, data = self.run_test("Get Services", "GET", "/services", 200)
         if success:
-            # Verify service structure
-            expected_services = ["fresh_registration", "renewal", "get_first_id", "change_of_particulars"]
+            # Verify service structure - now includes card_pickup
+            expected_services = ["fresh_registration", "renewal", "get_first_id", "change_of_particulars", "card_pickup"]
             if all(service in data for service in expected_services):
                 self.log_result("Services Structure Validation", True)
+                
+                # Test Card Pick-up service specifically
+                if "card_pickup" in data and "title" in data["card_pickup"]:
+                    if data["card_pickup"]["title"] == "Card Pick-up":
+                        self.log_result("Card Pick-up Service Present", True)
+                    else:
+                        self.log_result("Card Pick-up Service Present", False, "Incorrect title")
+                else:
+                    self.log_result("Card Pick-up Service Present", False, "Missing card_pickup service")
             else:
                 self.log_result("Services Structure Validation", False, "Missing expected services")
 
