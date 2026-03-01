@@ -242,24 +242,24 @@ export default function BookingPage() {
   const selectedService = formData.service_type ? serviceDetails[formData.service_type] : null;
 
   return (
-    <div className="min-h-screen bg-[#F3F4F6] py-8">
+    <div className="min-h-screen bg-[#F3F4F6] py-6 md:py-8">
       <div className="max-w-3xl mx-auto px-4">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 md:mb-8">
           <Button 
             variant="ghost" 
             onClick={handleBack}
-            className="mb-4"
+            className="mb-3 md:mb-4"
             data-testid="back-btn"
           >
             <ChevronLeft className="w-4 h-4 mr-2" /> Back
           </Button>
-          <h1 className="text-3xl font-bold text-[#1A1A1A]">Book Your Appointment</h1>
-          <p className="text-[#4B5563] mt-2">Complete the form below to schedule your visit</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">Book Your Appointment</h1>
+          <p className="text-[#4B5563] mt-1 md:mt-2 text-sm md:text-base">Complete the form below to schedule your visit</p>
         </div>
 
         {/* Progress Steps */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6 md:mb-8">
           {[1, 2, 3].map((s, index) => (
             <div key={s} className="flex items-center flex-1">
               <div className="flex flex-col items-center">
@@ -270,12 +270,12 @@ export default function BookingPage() {
                 >
                   {step > s ? <Check className="w-5 h-5" /> : s}
                 </div>
-                <span className="text-xs mt-2 text-[#4B5563]">
+                <span className="text-xs mt-2 text-[#4B5563] hidden sm:block">
                   {s === 1 ? "Details" : s === 2 ? "Service" : "Date"}
                 </span>
               </div>
               {index < 2 && (
-                <div className={`step-connector mx-2 ${step > s ? 'active' : ''}`} />
+                <div className={`step-connector mx-1 md:mx-2 ${step > s ? 'active' : ''}`} />
               )}
             </div>
           ))}
