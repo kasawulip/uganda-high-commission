@@ -1,0 +1,145 @@
+{
+  "design_strategy": {
+    "theme": "light",
+    "archetype": "Swiss & High-Contrast (Government Variation)",
+    "emotional_tone": "Official, Trustworthy, Efficient, Welcoming",
+    "visual_style": "Digital Bureaucracy - Clean lines, high readability, subtle paper textures, authoritative typography"
+  },
+  "typography": {
+    "headings": {
+      "family": "Merriweather, serif",
+      "usage": "Use for all major section headers (h1, h2, h3). Adds official weight.",
+      "weights": ["700", "900"],
+      "tracking": "tracking-tight"
+    },
+    "body": {
+      "family": "Inter, sans-serif",
+      "usage": "Use for all UI elements, forms, and paragraphs.",
+      "weights": ["400", "500", "600"],
+      "tracking": "tracking-normal"
+    },
+    "mono": {
+      "family": "JetBrains Mono, monospace",
+      "usage": "Use for reference numbers, dates, and technical data.",
+      "weights": ["400"]
+    }
+  },
+  "colors": {
+    "primary": {
+      "name": "Diplomatic Black",
+      "value": "#1A1A1A",
+      "usage": "Main text, primary borders, footer background"
+    },
+    "secondary": {
+      "name": "Uganda Red",
+      "value": "#D90000",
+      "usage": "Primary Call-to-Actions (Buttons), Alert badges, Error states. Use sparingly."
+    },
+    "accent": {
+      "name": "Republic Yellow",
+      "value": "#FCDC04",
+      "usage": "Focus rings, Highlights, Icon backgrounds, Step indicators (active state)"
+    },
+    "neutral": {
+      "name": "Official Grey",
+      "value": "#F3F4F6",
+      "usage": "Page backgrounds, Card backgrounds (secondary), Form inputs"
+    },
+    "text": {
+      "primary": "#111827",
+      "secondary": "#4B5563",
+      "muted": "#9CA3AF"
+    },
+    "feedback": {
+      "success": "#059669",
+      "warning": "#D97706",
+      "error": "#DC2626"
+    }
+  },
+  "spacing_and_layout": {
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "section_spacing": "py-16 md:py-24",
+    "card_padding": "p-6 md:p-8",
+    "grid_gap": "gap-6 md:gap-8",
+    "border_radius": {
+      "default": "rounded-md",
+      "card": "rounded-lg",
+      "button": "rounded-md"
+    },
+    "shadows": {
+      "card": "shadow-sm hover:shadow-md transition-shadow duration-200",
+      "dropdown": "shadow-lg border border-gray-100"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#D90000] text-white hover:bg-[#B90000] font-medium shadow-sm rounded-md px-6 py-2.5 transition-all",
+      "secondary": "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 font-medium rounded-md px-6 py-2.5 transition-all",
+      "ghost": "text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md px-4 py-2 transition-all"
+    },
+    "cards": {
+      "service": "bg-white border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-all cursor-pointer group relative overflow-hidden",
+      "feature": "bg-gray-50 border border-gray-100 rounded-lg p-6"
+    },
+    "inputs": {
+      "default": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    },
+    "badges": {
+      "status": "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+    }
+  },
+  "visual_enhancers": {
+    "textures": "Use subtle noise or paper grain on backgrounds to give a 'printed document' feel.",
+    "icons": "Phosphor Icons (Regular weight for UI, Duotone for features).",
+    "gradients": "Avoid strong gradients. Use subtle top-to-bottom fades (White to Gray-50) for section backgrounds.",
+    "borders": "Use 'border-l-4' on cards to indicate category or status (e.g., Red border for Urgent, Yellow for Pending)."
+  },
+  "image_urls": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1727193138027-61fbfedabbf0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwzfHxMb25kb24lMjBjaXR5JTIwc2t5bGluZSUyMGxhbmRtYXJrfGVufDB8fHx8MTc3MjM4MjUxM3ww&ixlib=rb-4.1.0&q=85",
+      "description": "London Clock Tower/Skyline - Use with overlay for Hero Section context.",
+      "category": "hero"
+    },
+    "cultural_hero": {
+      "url": "https://images.unsplash.com/photo-1770240090780-a80f44963545?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwxfHxVZ2FuZGElMjBmbGFnJTIwd2F2aW5nJTIwdGV4dHVyZXxlbnwwfHx8fDE3NzIzODI1MTJ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Two women with colorful cloth - Use for 'Welcome' or 'Community' section to add warmth.",
+      "category": "content"
+    },
+    "office_interior": {
+      "url": "https://images.unsplash.com/photo-1759691555407-3c5834e6991e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwb2ZmaWNlJTIwd2FpdGluZyUyMGFyZWElMjBicmlnaHR8ZW58MHx8fHwxNzcyMzgyNTE0fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Clean modern office - Use for 'Contact' or 'About' section background.",
+      "category": "background"
+    },
+    "passport_doc": {
+      "url": "https://images.unsplash.com/photo-1614599467445-afb0d1a01fc3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwzfHxwYXNzcG9ydCUyMGFuZCUyMHZpc2ElMjBkb2N1bWVudHMlMjBvbiUyMGRlc2t8ZW58MHx8fHwxNzcyMzgyNTI5fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Red book/Passport - Use for 'Services' section or 'Documents' page.",
+      "category": "icon/feature"
+    }
+  },
+  "layout_instructions": {
+    "landing_page": {
+      "hero": "Split layout or Centered with London skyline background (overlay: bg-black/50). Clear 'Book Appointment' button.",
+      "services": "Grid (Bento Mode A). Cards for: Fresh Registration, Renewal, GetFirst ID, Change of Particulars.",
+      "info": "Step-by-step process visualization (1. Choose Service -> 2. Select Date -> 3. Confirm)."
+    },
+    "booking_flow": {
+      "container": "Centered card layout, max-w-3xl.",
+      "steps": "Progress bar at top. Clear 'Back' and 'Next' buttons.",
+      "calendar": "Custom grid for Tuesday/Wednesday/Friday selection. Disabled weekends."
+    },
+    "admin_dashboard": {
+      "layout": "Sidebar navigation (Left). Top bar with User Profile. Content area with Data Tables.",
+      "density": "High (Compact rows).",
+      "widgets": "Stats cards at top (Total Appointments, Pending, Completed)."
+    }
+  },
+  "universal_guidelines": [
+    "Use 'Inter' font for body text and 'Merriweather' for headings.",
+    "Primary button color is #D90000 (Red). Secondary is White/Gray.",
+    "Always use a 'container' class for page content.",
+    "Ensure high contrast for accessibility (WCAG AA compliant).",
+    "Use 'sonner' for all toast notifications.",
+    "Add 'data-testid' to all interactive elements."
+  ],
+  "instructions_to_main_agent": "Follow the 'Official/Government' aesthetic. Do not use gradients or flashy animations. Focus on clarity, speed, and trust. Use the provided image URLs for the landing page visuals. Implement the booking flow with strict validation (Tue/Wed/Fri only). Ensure the Admin panel is dense and functional."
+}
