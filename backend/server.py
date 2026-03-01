@@ -291,7 +291,8 @@ def generate_pdf(appointment: dict) -> bytes:
         "fresh_registration": "Fresh Registration",
         "renewal": "Renewal of National ID",
         "get_first_id": "Get First ID",
-        "change_of_particulars": "Change of Particulars"
+        "change_of_particulars": "Change of Particulars",
+        "card_pickup": "Card Pick-up"
     }
     
     data = [
@@ -334,7 +335,9 @@ def generate_pdf(appointment: dict) -> bytes:
     story.append(Paragraph("IMPORTANT NOTICE", header_style))
     notice_text = """
     You are advised to visit the NIRA website and complete the pre-registration process 
-    as this shall help you to be served faster when you physically visit the High Commission.
+    for this service as this shall help you to be served faster when you physically visit 
+    the High Commission. Upon successful pre-registration, you will receive a pre-registration 
+    ID that you shall as well come along with during the physical visit to the High Commission.
     <br/><br/>
     Please bring this confirmation letter along with all required documents on your appointment date.
     <br/><br/>
