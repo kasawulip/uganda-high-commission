@@ -1,7 +1,17 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserPlus, RefreshCw, CreditCard, Edit3, Clock, MapPin, Phone, ChevronRight, Shield, CheckCircle, Package } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { UserPlus, RefreshCw, CreditCard, Edit3, Clock, MapPin, Phone, ChevronRight, Shield, CheckCircle, Package, CalendarClock, Search } from "lucide-react";
 
 const services = [
   {
