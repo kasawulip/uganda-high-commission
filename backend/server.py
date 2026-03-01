@@ -493,7 +493,7 @@ async def get_disabled_dates_endpoint():
 
 @api_router.post("/appointments", response_model=Appointment)
 async def create_appointment(appointment_data: AppointmentCreate):
-    """Create a new appointment"""
+    """Create a new appointment with race condition handling"""
     # Validate appointment date
     if not is_valid_appointment_date(appointment_data.appointment_date):
         raise HTTPException(
@@ -508,30 +508,73 @@ async def create_appointment(appointment_data: AppointmentCreate):
             detail="NIN or Application Number is required for Card Pick-up service."
         )
     
-    # Create appointment object
-    appointment = Appointment(
-        surname=appointment_data.surname,
-        first_name=appointment_data.first_name,
-        email=appointment_data.email,
-        phone=appointment_data.phone,
-        service_type=appointment_data.service_type,
-        appointment_date=appointment_data.appointment_date.isoformat(),
-        nin_or_application_number=appointment_data.nin_or_application_number
+    # Race condition handling: Use atomic operation with retry logic
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            # Generate unique reference number with timestamp for uniqueness
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S%f')
+            unique_id = str(uuid.uuid4())[:8].upper()
+            reference_number = f"UHC-{datetime.now().strftime('%Y%m%d')}-{unique_id}"
+            
+            # Create appointment object
+            appointment = Appointment(
+                id=str(uuid.uuid4()),
+                reference_number=reference_number,
+                surname=appointment_data.surname,
+                first_name=appointment_data.first_name,
+                email=appointment_data.email,
+                phone=appointment_data.phone,
+                service_type=appointment_data.service_type,
+                appointment_date=appointment_data.appointment_date.isoformat(),
+                nin_or_application_number=appointment_data.nin_or_application_number,
+                version=1
+            )
+            
+            # Save to database with unique constraint check
+            doc = appointment.model_dump()
+            doc['_submission_timestamp'] = datetime.now(timezone.utc).isoformat()
+            
+            # Use insert_one which is atomic - if reference_number exists, it will fail
+            # Create unique index on reference_number if not exists
+            await db.appointments.create_index("reference_number", unique=True, sparse=True)
+            await db.appointments.insert_one(doc)
+            
+            logger.info(f"Appointment created successfully: {reference_number}")
+            
+            # Generate PDF
+            pdf_bytes = generate_pdf(doc)
+            
+            # Send confirmation email (don't fail if email fails)
+            email_sent = await send_confirmation_email(doc, pdf_bytes)
+            if not email_sent:
+                logger.warning(f"Failed to send confirmation email for appointment {appointment.reference_number}")
+            
+            return appointment
+            
+        except Exception as e:
+            retry_count += 1
+            if "duplicate key error" in str(e).lower() or "E11000" in str(e):
+                logger.warning(f"Race condition detected, retrying... (attempt {retry_count})")
+                if retry_count >= max_retries:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="High traffic detected. Please try again in a moment."
+                    )
+                continue
+            else:
+                logger.error(f"Error creating appointment: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to create appointment. Please try again."
+                )
+    
+    raise HTTPException(
+        status_code=503,
+        detail="Service temporarily unavailable. Please try again."
     )
-    
-    # Save to database
-    doc = appointment.model_dump()
-    await db.appointments.insert_one(doc)
-    
-    # Generate PDF
-    pdf_bytes = generate_pdf(doc)
-    
-    # Send confirmation email (don't fail if email fails)
-    email_sent = await send_confirmation_email(doc, pdf_bytes)
-    if not email_sent:
-        logger.warning(f"Failed to send confirmation email for appointment {appointment.reference_number}")
-    
-    return appointment
 
 @api_router.get("/appointments/{appointment_id}")
 async def get_appointment(appointment_id: str):
