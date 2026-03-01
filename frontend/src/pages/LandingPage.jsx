@@ -215,18 +215,18 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 bg-[#1A1A1A]">
+      <section className="py-12 md:py-16 bg-[#1A1A1A]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-3 md:mb-4">
             Ready to Book Your Appointment?
           </h2>
-          <p className="text-lg text-gray-400 mb-8 max-w-2xl mx-auto">
+          <p className="text-base md:text-lg text-gray-400 mb-6 md:mb-8 max-w-2xl mx-auto">
             Start the booking process now and secure your preferred date for National ID services.
           </p>
           <Button 
             data-testid="cta-book-btn"
             onClick={() => navigate("/book")}
-            className="btn-primary text-lg px-10 py-6"
+            className="btn-primary text-base md:text-lg px-8 md:px-10 py-4 md:py-6"
           >
             Book Now <ChevronRight className="ml-2 w-5 h-5" />
           </Button>
