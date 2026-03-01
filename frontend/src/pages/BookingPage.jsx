@@ -208,7 +208,8 @@ export default function BookingPage() {
       const payload = {
         ...formData,
         phone: formData.phone.replace(/\s/g, ''),
-        appointment_date: format(formData.appointment_date, "yyyy-MM-dd")
+        appointment_date: format(formData.appointment_date, "yyyy-MM-dd"),
+        nin_or_application_number: formData.nin_or_application_number || null
       };
       
       const response = await axios.post(`${API}/appointments`, payload);
