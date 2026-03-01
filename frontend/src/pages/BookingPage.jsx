@@ -359,8 +359,8 @@ export default function BookingPage() {
           {step === 2 && (
             <>
               <CardHeader>
-                <CardTitle>Select Service</CardTitle>
-                <CardDescription>Choose the type of National ID service you require</CardDescription>
+                <CardTitle className="text-lg md:text-xl">Select Service</CardTitle>
+                <CardDescription className="text-sm">Choose the type of National ID service you require</CardDescription>
               </CardHeader>
               <CardContent>
                 {errors.service_type && (
@@ -369,7 +369,7 @@ export default function BookingPage() {
                     <AlertDescription>{errors.service_type}</AlertDescription>
                   </Alert>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-6">
                   {services.map((service) => (
                     <div
                       key={service.id}
@@ -380,7 +380,7 @@ export default function BookingPage() {
                       <div className={`service-icon ${service.color} mb-3`}>
                         <service.icon className="w-5 h-5 text-white" />
                       </div>
-                      <h4 className="font-semibold text-[#1A1A1A]">{service.title}</h4>
+                      <h4 className="font-semibold text-[#1A1A1A] text-sm md:text-base">{service.title}</h4>
                       {formData.service_type === service.id && (
                         <div className="absolute top-3 right-3">
                           <Check className="w-5 h-5 text-[#D90000]" />
@@ -389,6 +389,26 @@ export default function BookingPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* NIN/Application Number input for Card Pickup */}
+                {formData.service_type === "card_pickup" && (
+                  <div className="mb-6 p-4 bg-rose-50 rounded-lg border border-rose-200">
+                    <Label htmlFor="nin_or_application_number" className="text-[#1A1A1A] font-medium">
+                      NIN or Application Number *
+                    </Label>
+                    <Input
+                      id="nin_or_application_number"
+                      data-testid="nin-input"
+                      value={formData.nin_or_application_number}
+                      onChange={(e) => handleInputChange("nin_or_application_number", e.target.value)}
+                      placeholder="Enter your NIN or Application Number"
+                      className={`mt-2 ${errors.nin_or_application_number ? "border-red-500" : ""}`}
+                    />
+                    {errors.nin_or_application_number && (
+                      <p className="text-red-500 text-xs md:text-sm mt-1">{errors.nin_or_application_number}</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Service Requirements */}
                 {selectedService && (
