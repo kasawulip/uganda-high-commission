@@ -18,7 +18,8 @@ const serviceNames = {
   fresh_registration: "Fresh Registration",
   renewal: "Renewal of National ID",
   get_first_id: "Get First ID",
-  change_of_particulars: "Change of Particulars"
+  change_of_particulars: "Change of Particulars",
+  card_pickup: "Card Pick-up"
 };
 
 export default function ConfirmationPage() {
@@ -314,8 +315,10 @@ export default function ConfirmationPage() {
           <AlertCircle className="h-5 w-5 text-[#D90000]" />
           <AlertTitle className="text-[#D90000] font-semibold">Important Notice</AlertTitle>
           <AlertDescription className="text-[#4B5563] mt-2">
-            You are advised to visit the NIRA website and complete the pre-registration process 
-            as this shall help you to be served faster when you physically visit the High Commission.
+            You are advised to visit the NIRA website and complete the pre-registration process for this service 
+            as this shall help you to be served faster when you physically visit the High Commission. Upon successful 
+            pre-registration, you will receive a pre-registration ID that you shall as well come along with during 
+            the physical visit to the High Commission.
           </AlertDescription>
           <a 
             href="https://servicebooking.nira.go.ug"
@@ -328,7 +331,7 @@ export default function ConfirmationPage() {
         </Alert>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
           <Button 
             onClick={generatePDF}
             disabled={downloading}
@@ -343,7 +346,7 @@ export default function ConfirmationPage() {
             ) : (
               <>
                 <Download className="w-4 h-4 mr-2" />
-                Download Confirmation
+                Download Appointment Confirmation Letter
               </>
             )}
           </Button>
