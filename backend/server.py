@@ -371,7 +371,8 @@ async def send_confirmation_email(appointment: dict, pdf_bytes: bytes) -> bool:
             "fresh_registration": "Fresh Registration",
             "renewal": "Renewal of National ID",
             "get_first_id": "Get First ID",
-            "change_of_particulars": "Change of Particulars"
+            "change_of_particulars": "Change of Particulars",
+            "card_pickup": "Card Pick-up"
         }
         
         html_content = f"""
@@ -415,7 +416,7 @@ async def send_confirmation_email(appointment: dict, pdf_bytes: bytes) -> bool:
                     </p>
                 </div>
                 
-                <p style="color: #D90000;"><strong>Important:</strong> You are advised to visit the NIRA website and complete the pre-registration as this shall help you to be served faster when you physically visit the High Commission.</p>
+                <p style="color: #D90000;"><strong>Important:</strong> You are advised to visit the NIRA website and complete the pre-registration process for this service as this shall help you to be served faster when you physically visit the High Commission. Upon successful pre-registration, you will receive a pre-registration ID that you shall as well come along with during the physical visit to the High Commission.</p>
                 
                 <p>Please find your appointment confirmation letter attached to this email.</p>
                 
