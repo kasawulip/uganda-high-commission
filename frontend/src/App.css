@@ -3,12 +3,17 @@
   min-height: 100vh;
 }
 
-/* Hero section background */
+/* Hero section background - Uganda House, Trafalgar Square */
 .hero-bg {
-  background-image: url('https://images.unsplash.com/photo-1727193138027-61fbfedabbf0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwzfHxMb25kb24lMjBjaXR5JTIwc2t5bGluZSUyMGxhbmRtYXJrfGVufDB8fHx8MTc3MjM4MjUxM3ww&ixlib=rb-4.1.0&q=85');
+  background-image: url('https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80');
   background-size: cover;
   background-position: center;
-  background-attachment: fixed;
+}
+
+@media (min-width: 768px) {
+  .hero-bg {
+    background-attachment: fixed;
+  }
 }
 
 /* Service icons */
@@ -189,15 +194,45 @@
 
 /* Mobile responsive adjustments */
 @media (max-width: 640px) {
-  .hero-bg {
-    background-attachment: scroll;
-  }
-  
   .booking-container {
-    padding: 16px;
+    padding: 12px;
   }
   
   .stats-card .value {
     font-size: 24px;
+  }
+  
+  .service-card {
+    padding: 16px;
+  }
+  
+  .service-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .admin-table th,
+  .admin-table td {
+    padding: 10px 8px;
+    font-size: 12px;
+  }
+  
+  .step-indicator {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+}
+
+/* Touch-friendly buttons for mobile */
+@media (max-width: 768px) {
+  .btn-primary,
+  .btn-secondary {
+    min-height: 48px;
+    font-size: 16px;
+  }
+  
+  input, select, textarea {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
   }
 }
