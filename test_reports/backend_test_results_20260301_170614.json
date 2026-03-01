@@ -1,0 +1,164 @@
+{
+  "timestamp": "2026-03-01T17:06:14.223663",
+  "total_tests": 31,
+  "passed_tests": 30,
+  "failed_tests": 1,
+  "success_rate": 96.7741935483871,
+  "test_results": [
+    {
+      "test": "Health Check",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Root Endpoint",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Get Services",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Services Structure Validation",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Card Pick-up Service Present",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Get Disabled Dates",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Disabled Dates Structure",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Login",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Token Retrieved",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Stats",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Stats Structure",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Create Appointment",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Appointment ID Retrieved",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Appointment Structure Validation",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Get Appointment by ID",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Appointment Data Validation",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "PDF Generation",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Get Appointments",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Appointments List Structure",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Created Appointment Found in List",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Update Status to Completed",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Verify Status Update",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Status Update Verification",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Invalid Date (Weekend)",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Invalid Phone Format",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Unauthorized Admin Stats",
+      "status": "FAILED",
+      "message": "Expected 401, got 200"
+    },
+    {
+      "test": "Unauthorized Admin Appointments",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Card Pick-up Without NIN (Should Fail)",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Card Pick-up With NIN",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "NIN Field Saved Correctly",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Valid Uganda Phone Number",
+      "status": "PASSED",
+      "message": ""
+    }
+  ]
+}
