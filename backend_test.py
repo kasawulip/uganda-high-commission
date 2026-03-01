@@ -446,6 +446,11 @@ class NIDAppointmentTester:
         self.test_invalid_appointment_data()
         self.test_unauthorized_access()
         
+        # New feature tests
+        print("\n🆕 Testing New Features...")
+        self.test_card_pickup_service()
+        self.test_phone_validation_uganda()
+        
         # Print summary
         self.print_summary()
         
