@@ -101,9 +101,9 @@ export default function LandingPage() {
       <section className="py-12 md:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8 md:mb-12">
-            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#1A1A1A] mb-3 md:mb-4">Our Services</h2>
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#1A1A1A] mb-3 md:mb-4">National ID Services</h2>
             <p className="text-base md:text-lg text-[#4B5563] max-w-2xl mx-auto">
-              Select the service you require. Each service has specific requirements you'll need to prepare.
+              Each service has specific requirements you'll need to prepare.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 stagger-children">
