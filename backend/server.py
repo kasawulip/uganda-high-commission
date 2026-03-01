@@ -584,6 +584,98 @@ async def get_appointment(appointment_id: str):
         raise HTTPException(status_code=404, detail="Appointment not found")
     return appointment
 
+@api_router.get("/appointments/by-reference/{reference_number}")
+async def get_appointment_by_reference(reference_number: str):
+    """Get a single appointment by reference number"""
+    appointment = await db.appointments.find_one({"reference_number": reference_number}, {"_id": 0})
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return appointment
+
+@api_router.patch("/appointments/{appointment_id}/reschedule")
+async def reschedule_appointment(appointment_id: str, reschedule_data: RescheduleRequest):
+    """Reschedule an appointment to a new date (user self-service)"""
+    # Find the appointment
+    appointment = await db.appointments.find_one({"id": appointment_id}, {"_id": 0})
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    # Check if appointment can be modified
+    if appointment.get('status') == 'cancelled':
+        raise HTTPException(status_code=400, detail="Cannot reschedule a cancelled appointment")
+    if appointment.get('status') == 'completed':
+        raise HTTPException(status_code=400, detail="Cannot reschedule a completed appointment")
+    
+    # Validate new date
+    if not is_valid_appointment_date(reschedule_data.new_date):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid appointment date. Appointments are only available on Tuesday, Wednesday, and Friday, excluding public holidays."
+        )
+    
+    # Check if new date is in the past
+    if reschedule_data.new_date < date.today():
+        raise HTTPException(status_code=400, detail="Cannot reschedule to a past date")
+    
+    # Use optimistic locking to prevent race conditions
+    current_version = appointment.get('version', 1)
+    
+    result = await db.appointments.update_one(
+        {"id": appointment_id, "version": current_version},
+        {
+            "$set": {
+                "appointment_date": reschedule_data.new_date.isoformat(),
+                "version": current_version + 1
+            }
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Appointment was modified by another request. Please refresh and try again."
+        )
+    
+    logger.info(f"Appointment {appointment_id} rescheduled to {reschedule_data.new_date}")
+    return {"message": "Appointment rescheduled successfully", "new_date": reschedule_data.new_date.isoformat()}
+
+@api_router.patch("/appointments/{appointment_id}/cancel")
+async def cancel_appointment_user(appointment_id: str):
+    """Cancel an appointment (user self-service)"""
+    # Find the appointment
+    appointment = await db.appointments.find_one({"id": appointment_id}, {"_id": 0})
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    # Check if appointment can be cancelled
+    if appointment.get('status') == 'cancelled':
+        raise HTTPException(status_code=400, detail="Appointment is already cancelled")
+    if appointment.get('status') == 'completed':
+        raise HTTPException(status_code=400, detail="Cannot cancel a completed appointment")
+    
+    # Use optimistic locking
+    current_version = appointment.get('version', 1)
+    
+    result = await db.appointments.update_one(
+        {"id": appointment_id, "version": current_version},
+        {
+            "$set": {
+                "status": "cancelled",
+                "cancelled_at": datetime.now(timezone.utc).isoformat(),
+                "version": current_version + 1
+            }
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Appointment was modified by another request. Please refresh and try again."
+        )
+    
+    logger.info(f"Appointment {appointment_id} cancelled by user")
+    return {"message": "Appointment cancelled successfully"}
+
 @api_router.get("/appointments/{appointment_id}/pdf")
 async def download_appointment_pdf(appointment_id: str):
     """Download appointment confirmation PDF"""
