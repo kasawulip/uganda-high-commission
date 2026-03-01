@@ -616,6 +616,17 @@ class NIDAppointmentTester:
         self.test_card_pickup_service()
         self.test_phone_validation_uganda()
         
+        # Manage appointment tests
+        print("\n🔄 Testing Manage Appointment Features...")
+        if appointment_created:
+            self.test_get_appointment_by_reference()
+            self.test_reschedule_appointment()
+            self.test_cancel_appointment()
+            
+        # Race condition tests
+        print("\n⚡ Testing Race Condition Handling...")
+        self.test_race_condition_handling()
+        
         # Print summary
         self.print_summary()
         
