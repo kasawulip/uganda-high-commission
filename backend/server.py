@@ -59,6 +59,7 @@ class ServiceType(str, Enum):
     RENEWAL = "renewal"
     GET_FIRST_ID = "get_first_id"
     CHANGE_OF_PARTICULARS = "change_of_particulars"
+    CARD_PICKUP = "card_pickup"
 
 # UK Public Holidays 2025-2026
 UK_HOLIDAYS = [
@@ -124,9 +125,10 @@ class AppointmentCreate(BaseModel):
     surname: str = Field(..., min_length=1, max_length=100)
     first_name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
-    phone: str = Field(..., pattern=r'^\+44\d{10}$|^0\d{10}$')
+    phone: str = Field(..., pattern=r'^(\+44\d{10}|0\d{10}|\+256\d{9}|0\d{9})$')
     service_type: ServiceType
     appointment_date: date
+    nin_or_application_number: Optional[str] = None
 
 class Appointment(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -139,6 +141,7 @@ class Appointment(BaseModel):
     phone: str
     service_type: ServiceType
     appointment_date: str  # Stored as ISO string
+    nin_or_application_number: Optional[str] = None
     status: str = "confirmed"
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
