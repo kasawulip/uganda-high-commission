@@ -9,8 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Calendar } from "@/components/ui/calendar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
-  FileText, RefreshCw, CreditCard, Edit3, ChevronLeft, ChevronRight, 
-  Check, Loader2, AlertCircle, ExternalLink, Info 
+  UserPlus, RefreshCw, CreditCard, Edit3, ChevronLeft, ChevronRight, 
+  Check, Loader2, AlertCircle, ExternalLink, Info, Package 
 } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 
@@ -19,8 +19,8 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const serviceDetails = {
   fresh_registration: {
     title: "Fresh Registration",
-    icon: FileText,
-    color: "bg-blue-500",
+    icon: UserPlus,
+    color: "bg-blue-600",
     below_18: {
       title: "First-Time Applicant Below Age of 18",
       requirements: [
@@ -41,7 +41,7 @@ const serviceDetails = {
   renewal: {
     title: "Renewal of National ID",
     icon: RefreshCw,
-    color: "bg-green-500",
+    color: "bg-emerald-500",
     requirements: [
       "Your current National ID (original or photocopy).",
       "If you lost your National ID and have no photocopy, ensure you have your National Identification Number (NIN) correctly written down.",
@@ -51,7 +51,7 @@ const serviceDetails = {
   get_first_id: {
     title: "Get First ID",
     icon: CreditCard,
-    color: "bg-purple-500",
+    color: "bg-violet-500",
     description: "This service is for persons who were registered when they were below the age of 16 years and were issued a National Identification Number (NIN) but have not yet received a physical National ID card. Now that they have attained 16 years of age, they need to update their records so that the ID card can be printed.",
     requirements: [
       "National Identification Number (NIN) only."
@@ -60,12 +60,23 @@ const serviceDetails = {
   change_of_particulars: {
     title: "Change of Particulars",
     icon: Edit3,
-    color: "bg-orange-500",
+    color: "bg-amber-500",
     description: "This service is for persons already registered and possessing a National Identification Number (NIN) who wish to make changes to their name, date of birth, place of birth, or other personal details. The requirements vary depending on the specific change requested.",
     link: "https://www.nira.go.ug/publications/the-guide-to-renewing-replacing-updating-your-national-id",
     requirements: [
       "For full details on the particular requirements for the change you desire to undertake, please visit the NIRA website."
     ]
+  },
+  card_pickup: {
+    title: "Card Pick-up",
+    icon: Package,
+    color: "bg-rose-500",
+    description: "This service is for persons who have completed the registration process and their National ID card is ready for collection.",
+    requirements: [
+      "Your National Identification Number (NIN) or Application Number.",
+      "A valid form of identification for verification."
+    ],
+    requiresNIN: true
   }
 };
 
@@ -73,8 +84,26 @@ const services = [
   { id: "fresh_registration", ...serviceDetails.fresh_registration },
   { id: "renewal", ...serviceDetails.renewal },
   { id: "get_first_id", ...serviceDetails.get_first_id },
-  { id: "change_of_particulars", ...serviceDetails.change_of_particulars }
+  { id: "change_of_particulars", ...serviceDetails.change_of_particulars },
+  { id: "card_pickup", ...serviceDetails.card_pickup }
 ];
+
+// International name validation - allows letters, spaces, hyphens, apostrophes, and common diacritics
+const isValidName = (name) => {
+  // Pattern allows: letters (including accented), spaces, hyphens, apostrophes
+  const namePattern = /^[a-zA-ZÀ-ÿ\u00C0-\u024F\u1E00-\u1EFF]+([\s'-][a-zA-ZÀ-ÿ\u00C0-\u024F\u1E00-\u1EFF]+)*$/;
+  return namePattern.test(name.trim()) && name.trim().length >= 2;
+};
+
+// Phone validation for UK (+44) and Uganda (+256) numbers
+const isValidPhone = (phone) => {
+  const cleanPhone = phone.replace(/\s/g, '');
+  // UK: +44 followed by 10 digits OR 0 followed by 10 digits
+  const ukPattern = /^(\+44\d{10}|0\d{10})$/;
+  // Uganda: +256 followed by 9 digits OR 0 followed by 9 digits
+  const ugandaPattern = /^(\+256\d{9}|0\d{9})$/;
+  return ukPattern.test(cleanPhone) || ugandaPattern.test(cleanPhone);
+};
 
 export default function BookingPage() {
   const navigate = useNavigate();
