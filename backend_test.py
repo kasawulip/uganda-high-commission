@@ -280,6 +280,82 @@ class NIDAppointmentTester:
             else:
                 self.log_result("Status Update Verification", False, f"Status is {data.get('status')}, expected 'completed'")
 
+    def test_card_pickup_service(self):
+        """Test Card Pick-up service with NIN requirement"""
+        # Get a valid future date
+        tomorrow = date.today() + timedelta(days=1)
+        appointment_date = tomorrow
+        
+        # Find next valid appointment date
+        while appointment_date.weekday() not in [1, 2, 4]:  # Tue, Wed, Fri
+            appointment_date += timedelta(days=1)
+        
+        # Test Card Pick-up without NIN (should fail)
+        card_pickup_no_nin = {
+            "surname": "TestUser",
+            "first_name": "Jane",
+            "email": f"test{uuid.uuid4().hex[:8]}@example.com",
+            "phone": "+256701234567",  # Uganda number
+            "service_type": "card_pickup",
+            "appointment_date": appointment_date.isoformat()
+        }
+        
+        self.run_test(
+            "Card Pick-up Without NIN (Should Fail)",
+            "POST",
+            "/appointments",
+            400,
+            data=card_pickup_no_nin
+        )
+        
+        # Test Card Pick-up with NIN (should succeed)
+        card_pickup_with_nin = {
+            "surname": "TestUser",
+            "first_name": "Jane", 
+            "email": f"test{uuid.uuid4().hex[:8]}@example.com",
+            "phone": "+256701234567",  # Uganda number
+            "service_type": "card_pickup",
+            "appointment_date": appointment_date.isoformat(),
+            "nin_or_application_number": "CF12345678901234"
+        }
+        
+        success, response = self.run_test(
+            "Card Pick-up With NIN",
+            "POST",
+            "/appointments", 
+            200,
+            data=card_pickup_with_nin
+        )
+        
+        if success and response.get("nin_or_application_number") == "CF12345678901234":
+            self.log_result("NIN Field Saved Correctly", True)
+        else:
+            self.log_result("NIN Field Saved Correctly", False, "NIN not saved properly")
+
+    def test_phone_validation_uganda(self):
+        """Test Uganda phone number validation"""
+        appointment_date = date.today() + timedelta(days=1)
+        while appointment_date.weekday() not in [1, 2, 4]:
+            appointment_date += timedelta(days=1)
+            
+        # Test valid Uganda number
+        uganda_phone_data = {
+            "surname": "TestUser",
+            "first_name": "John",
+            "email": f"test{uuid.uuid4().hex[:8]}@example.com",
+            "phone": "+256701234567",  # Valid Uganda format
+            "service_type": "renewal", 
+            "appointment_date": appointment_date.isoformat()
+        }
+        
+        self.run_test(
+            "Valid Uganda Phone Number",
+            "POST",
+            "/appointments",
+            200,
+            data=uganda_phone_data
+        )
+
     def test_invalid_appointment_data(self):
         """Test error handling with invalid data"""
         # Test invalid date (weekend)
