@@ -303,7 +303,7 @@ export default function BookingPage() {
                       className={errors.surname ? "border-red-500" : ""}
                     />
                     {errors.surname && (
-                      <p className="text-red-500 text-sm mt-1">{errors.surname}</p>
+                      <p className="text-red-500 text-xs md:text-sm mt-1">{errors.surname}</p>
                     )}
                   </div>
                   <div>
@@ -317,7 +317,7 @@ export default function BookingPage() {
                       className={errors.first_name ? "border-red-500" : ""}
                     />
                     {errors.first_name && (
-                      <p className="text-red-500 text-sm mt-1">{errors.first_name}</p>
+                      <p className="text-red-500 text-xs md:text-sm mt-1">{errors.first_name}</p>
                     )}
                   </div>
                 </div>
@@ -333,21 +333,22 @@ export default function BookingPage() {
                     className={errors.email ? "border-red-500" : ""}
                   />
                   {errors.email && (
-                    <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+                    <p className="text-red-500 text-xs md:text-sm mt-1">{errors.email}</p>
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="phone">UK Phone Number *</Label>
+                  <Label htmlFor="phone">Phone Number (UK or Uganda) *</Label>
                   <Input
                     id="phone"
                     data-testid="phone-input"
                     value={formData.phone}
                     onChange={(e) => handleInputChange("phone", e.target.value)}
-                    placeholder="+447123456789 or 07123456789"
+                    placeholder="+447123456789 or +256701234567"
                     className={errors.phone ? "border-red-500" : ""}
                   />
+                  <p className="text-xs text-[#6B7280] mt-1">UK (+44) or Uganda (+256) numbers accepted</p>
                   {errors.phone && (
-                    <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+                    <p className="text-red-500 text-xs md:text-sm mt-1">{errors.phone}</p>
                   )}
                 </div>
               </CardContent>
