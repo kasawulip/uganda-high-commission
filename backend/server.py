@@ -144,6 +144,10 @@ class Appointment(BaseModel):
     nin_or_application_number: Optional[str] = None
     status: str = "confirmed"
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    version: int = 1  # For optimistic locking to handle race conditions
+
+class RescheduleRequest(BaseModel):
+    new_date: date
 
 class AdminLogin(BaseModel):
     username: str
