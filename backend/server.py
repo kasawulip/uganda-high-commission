@@ -128,6 +128,7 @@ class AppointmentCreate(BaseModel):
     phone: str = Field(..., pattern=r'^(\+44\d{10}|0\d{10}|\+256\d{9}|0\d{9})$')
     service_type: ServiceType
     appointment_date: date
+    appointment_time: str = Field(..., pattern=r'^(10:00|10:30|11:00|11:30|12:00|12:30)$')
     nin_or_application_number: Optional[str] = None
 
 class Appointment(BaseModel):
@@ -141,6 +142,8 @@ class Appointment(BaseModel):
     phone: str
     service_type: ServiceType
     appointment_date: str  # Stored as ISO string
+    appointment_time: str = "10:00"  # Default time slot
+    time_window: str = "10:00 AM – 1:00 PM"  # Always this window
     nin_or_application_number: Optional[str] = None
     status: str = "confirmed"
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -148,6 +151,7 @@ class Appointment(BaseModel):
 
 class RescheduleRequest(BaseModel):
     new_date: date
+    new_time: str = Field(..., pattern=r'^(10:00|10:30|11:00|11:30|12:00|12:30)$')
 
 class AdminLogin(BaseModel):
     username: str
@@ -224,24 +228,72 @@ SERVICE_REQUIREMENTS = {
 }
 
 # Helper Functions
-def is_valid_appointment_date(d: date) -> bool:
-    """Check if date is valid for appointment (Tue, Wed, Fri only, not a holiday)"""
-    # Check if weekend (0=Monday, 5=Saturday, 6=Sunday)
-    if d.weekday() in [0, 3, 5, 6]:  # Mon, Thu, Sat, Sun - invalid
+# Service scheduling rules
+# Fresh Registration, GetFirstID, Change of Particulars, Renewal: Mon, Wed, Fri only
+# Card Pickup (Card Issuance): Mon-Fri
+STANDARD_SERVICES = [ServiceType.FRESH_REGISTRATION, ServiceType.GET_FIRST_ID, 
+                     ServiceType.CHANGE_OF_PARTICULARS, ServiceType.RENEWAL]
+CARD_PICKUP_SERVICES = [ServiceType.CARD_PICKUP]
+
+# Time slots available: 10:00 AM - 1:00 PM
+TIME_SLOTS = ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30"]
+TIME_WINDOW = "10:00 AM – 1:00 PM"
+
+def is_valid_appointment_date_for_service(d: date, service_type: ServiceType) -> bool:
+    """Check if date is valid for appointment based on service type"""
+    # Check if in the past
+    if d < date.today():
         return False
-    # Valid days are: 1=Tue, 2=Wed, 4=Fri
-    if d.weekday() not in [1, 2, 4]:
+    
+    # Check if holiday (applies to all services)
+    if d in ALL_HOLIDAYS:
+        return False
+    
+    # Check weekday based on service type
+    # 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday
+    if service_type in CARD_PICKUP_SERVICES:
+        # Card Pickup: Monday to Friday (0-4)
+        if d.weekday() > 4:  # Saturday (5) or Sunday (6)
+            return False
+    else:
+        # Standard services: Monday, Wednesday, Friday only (0, 2, 4)
+        if d.weekday() not in [0, 2, 4]:
+            return False
+    
+    return True
+
+def is_valid_appointment_date(d: date) -> bool:
+    """Check if date is valid for any appointment (legacy - uses most restrictive)"""
+    # Check if in the past
+    if d < date.today():
         return False
     # Check if holiday
     if d in ALL_HOLIDAYS:
         return False
-    # Check if in the past
-    if d < date.today():
+    # Default to Monday, Wednesday, Friday
+    if d.weekday() not in [0, 2, 4]:
         return False
     return True
 
+def get_disabled_dates_for_service(start_date: date, end_date: date, service_type: str) -> List[str]:
+    """Get list of disabled dates based on service type"""
+    disabled = []
+    current = start_date
+    
+    # Convert string to enum if needed
+    try:
+        svc_type = ServiceType(service_type) if isinstance(service_type, str) else service_type
+    except ValueError:
+        svc_type = ServiceType.FRESH_REGISTRATION  # Default
+    
+    while current <= end_date:
+        if not is_valid_appointment_date_for_service(current, svc_type):
+            disabled.append(current.isoformat())
+        current += timedelta(days=1)
+    return disabled
+
 def get_disabled_dates(start_date: date, end_date: date) -> List[str]:
-    """Get list of disabled dates (weekends + holidays) as ISO strings"""
+    """Get list of disabled dates (most restrictive - Mon, Wed, Fri only)"""
     disabled = []
     current = start_date
     while current <= end_date:
@@ -283,11 +335,20 @@ def generate_pdf(appointment: dict) -> bytes:
         spaceAfter=6
     )
     
+    warning_style = ParagraphStyle(
+        'WarningStyle',
+        parent=styles['Normal'],
+        fontSize=11,
+        spaceAfter=6,
+        textColor=colors.HexColor('#D90000'),
+        fontName='Helvetica-Bold'
+    )
+    
     # Title
     story.append(Paragraph("UGANDA HIGH COMMISSION", title_style))
     story.append(Paragraph("LONDON", title_style))
     story.append(Spacer(1, 20))
-    story.append(Paragraph("NATIONAL ID APPOINTMENT CONFIRMATION", header_style))
+    story.append(Paragraph("NATIONAL ID APPOINTMENT CONFIRMATION LETTER", header_style))
     story.append(Spacer(1, 20))
     
     # Appointment Details Table
@@ -299,13 +360,16 @@ def generate_pdf(appointment: dict) -> bytes:
         "card_pickup": "Card Pick-up"
     }
     
+    time_window = appointment.get('time_window', '10:00 AM – 1:00 PM')
+    
     data = [
-        ["Reference Number:", appointment.get('reference_number', 'N/A')],
-        ["Full Name:", f"{appointment.get('surname', '')} {appointment.get('first_name', '')}"],
+        ["Booking Reference:", appointment.get('reference_number', 'N/A')],
+        ["Applicant Name:", f"{appointment.get('first_name', '')} {appointment.get('surname', '')}"],
         ["Email:", appointment.get('email', 'N/A')],
         ["Phone:", appointment.get('phone', 'N/A')],
         ["Service Type:", service_titles.get(appointment.get('service_type', ''), 'N/A')],
         ["Appointment Date:", appointment.get('appointment_date', 'N/A')],
+        ["Time Window:", time_window],
         ["Status:", appointment.get('status', 'confirmed').upper()],
     ]
     
@@ -322,7 +386,17 @@ def generate_pdf(appointment: dict) -> bytes:
         ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
     ]))
     story.append(table)
-    story.append(Spacer(1, 30))
+    story.append(Spacer(1, 20))
+    
+    # Important Attendance Instruction
+    story.append(Paragraph("IMPORTANT ATTENDANCE INSTRUCTION", header_style))
+    attendance_text = f"""
+    You are required to present yourself at the Uganda High Commission within the scheduled 
+    timeframe ({time_window}) on your selected appointment date. 
+    <b>Late arrivals outside this timeframe may not be attended to.</b>
+    """
+    story.append(Paragraph(attendance_text, warning_style))
+    story.append(Spacer(1, 20))
     
     # Venue Information
     story.append(Paragraph("VENUE", header_style))
@@ -379,6 +453,8 @@ async def send_confirmation_email(appointment: dict, pdf_bytes: bytes) -> bool:
             "card_pickup": "Card Pick-up"
         }
         
+        time_window = appointment.get('time_window', '10:00 AM – 1:00 PM')
+        
         html_content = f"""
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -397,8 +473,12 @@ async def send_confirmation_email(appointment: dict, pdf_bytes: bytes) -> bool:
                 <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr>
-                            <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;"><strong>Reference Number:</strong></td>
+                            <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;"><strong>Booking Reference:</strong></td>
                             <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;">{appointment.get('reference_number', 'N/A')}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;"><strong>Applicant Name:</strong></td>
+                            <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;">{appointment.get('first_name', '')} {appointment.get('surname', '')}</td>
                         </tr>
                         <tr>
                             <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;"><strong>Service Type:</strong></td>
@@ -408,7 +488,20 @@ async def send_confirmation_email(appointment: dict, pdf_bytes: bytes) -> bool:
                             <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;"><strong>Appointment Date:</strong></td>
                             <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;">{appointment.get('appointment_date', 'N/A')}</td>
                         </tr>
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;"><strong>Time Window:</strong></td>
+                            <td style="padding: 10px; border-bottom: 1px solid #E5E7EB;">{time_window}</td>
+                        </tr>
                     </table>
+                </div>
+                
+                <div style="background-color: #D90000; padding: 15px; border-radius: 8px; margin: 20px 0; color: white;">
+                    <h3 style="margin: 0 0 10px 0; color: white;">⚠️ IMPORTANT ATTENDANCE INSTRUCTION</h3>
+                    <p style="margin: 0; color: white;">
+                        You are required to present yourself at the Uganda High Commission within the scheduled timeframe 
+                        ({time_window}) on your selected appointment date. <strong>Late arrivals outside this 
+                        timeframe may not be attended to.</strong>
+                    </p>
                 </div>
                 
                 <div style="background-color: #FCDC04; padding: 15px; border-radius: 8px; margin: 20px 0;">
@@ -420,7 +513,7 @@ async def send_confirmation_email(appointment: dict, pdf_bytes: bytes) -> bool:
                     </p>
                 </div>
                 
-                <p style="color: #D90000;"><strong>Important:</strong> You are advised to visit the NIRA website and complete the pre-registration process for this service as this shall help you to be served faster when you physically visit the High Commission. Upon successful pre-registration, you will receive a pre-registration ID that you shall as well come along with during the physical visit to the High Commission.</p>
+                <p style="color: #D90000;"><strong>Pre-Registration:</strong> You are advised to visit the NIRA website and complete the pre-registration process for this service as this shall help you to be served faster when you physically visit the High Commission. Upon successful pre-registration, you will receive a pre-registration ID that you shall as well come along with during the physical visit to the High Commission.</p>
                 
                 <p>Please find your appointment confirmation letter attached to this email.</p>
                 
@@ -484,21 +577,52 @@ async def get_services():
     return SERVICE_REQUIREMENTS
 
 @api_router.get("/disabled-dates")
-async def get_disabled_dates_endpoint():
-    """Get list of disabled dates for the next 6 months"""
+async def get_disabled_dates_endpoint(service_type: Optional[str] = None):
+    """Get list of disabled dates for the next 6 months, optionally filtered by service type"""
     start = date.today()
     end = start + timedelta(days=180)
-    disabled = get_disabled_dates(start, end)
-    return {"disabled_dates": disabled, "holidays": [d.isoformat() for d in ALL_HOLIDAYS]}
+    
+    if service_type:
+        disabled = get_disabled_dates_for_service(start, end, service_type)
+    else:
+        disabled = get_disabled_dates(start, end)
+    
+    return {
+        "disabled_dates": disabled, 
+        "holidays": [d.isoformat() for d in ALL_HOLIDAYS],
+        "time_slots": TIME_SLOTS,
+        "time_window": TIME_WINDOW
+    }
+
+@api_router.get("/time-slots")
+async def get_time_slots():
+    """Get available time slots"""
+    return {
+        "time_slots": TIME_SLOTS,
+        "time_window": TIME_WINDOW
+    }
 
 @api_router.post("/appointments", response_model=Appointment)
 async def create_appointment(appointment_data: AppointmentCreate):
     """Create a new appointment with race condition handling"""
-    # Validate appointment date
-    if not is_valid_appointment_date(appointment_data.appointment_date):
+    # Validate appointment date based on service type
+    if not is_valid_appointment_date_for_service(appointment_data.appointment_date, appointment_data.service_type):
+        if appointment_data.service_type == ServiceType.CARD_PICKUP:
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid appointment date. Card Pick-up appointments are available Monday to Friday, excluding public holidays."
+            )
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid appointment date. Appointments for this service are only available on Monday, Wednesday, and Friday, excluding public holidays."
+            )
+    
+    # Validate time slot
+    if appointment_data.appointment_time not in TIME_SLOTS:
         raise HTTPException(
-            status_code=400, 
-            detail="Invalid appointment date. Appointments are only available on Tuesday, Wednesday, and Friday, excluding public holidays."
+            status_code=400,
+            detail=f"Invalid time slot. Available slots are: {', '.join(TIME_SLOTS)}"
         )
     
     # Validate NIN for card pickup
@@ -528,6 +652,8 @@ async def create_appointment(appointment_data: AppointmentCreate):
                 phone=appointment_data.phone,
                 service_type=appointment_data.service_type,
                 appointment_date=appointment_data.appointment_date.isoformat(),
+                appointment_time=appointment_data.appointment_time,
+                time_window=TIME_WINDOW,
                 nin_or_application_number=appointment_data.nin_or_application_number,
                 version=1
             )
@@ -605,11 +731,30 @@ async def reschedule_appointment(appointment_id: str, reschedule_data: Reschedul
     if appointment.get('status') == 'completed':
         raise HTTPException(status_code=400, detail="Cannot reschedule a completed appointment")
     
-    # Validate new date
-    if not is_valid_appointment_date(reschedule_data.new_date):
+    # Get service type for validation
+    try:
+        service_type = ServiceType(appointment.get('service_type'))
+    except ValueError:
+        service_type = ServiceType.FRESH_REGISTRATION
+    
+    # Validate new date based on service type
+    if not is_valid_appointment_date_for_service(reschedule_data.new_date, service_type):
+        if service_type == ServiceType.CARD_PICKUP:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid appointment date. Card Pick-up appointments are available Monday to Friday, excluding public holidays."
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid appointment date. Appointments for this service are only available on Monday, Wednesday, and Friday, excluding public holidays."
+            )
+    
+    # Validate time slot
+    if reschedule_data.new_time not in TIME_SLOTS:
         raise HTTPException(
             status_code=400,
-            detail="Invalid appointment date. Appointments are only available on Tuesday, Wednesday, and Friday, excluding public holidays."
+            detail=f"Invalid time slot. Available slots are: {', '.join(TIME_SLOTS)}"
         )
     
     # Check if new date is in the past
@@ -624,6 +769,7 @@ async def reschedule_appointment(appointment_id: str, reschedule_data: Reschedul
         {
             "$set": {
                 "appointment_date": reschedule_data.new_date.isoformat(),
+                "appointment_time": reschedule_data.new_time,
                 "version": current_version + 1
             }
         }
@@ -635,8 +781,12 @@ async def reschedule_appointment(appointment_id: str, reschedule_data: Reschedul
             detail="Appointment was modified by another request. Please refresh and try again."
         )
     
-    logger.info(f"Appointment {appointment_id} rescheduled to {reschedule_data.new_date}")
-    return {"message": "Appointment rescheduled successfully", "new_date": reschedule_data.new_date.isoformat()}
+    logger.info(f"Appointment {appointment_id} rescheduled to {reschedule_data.new_date} at {reschedule_data.new_time}")
+    return {
+        "message": "Appointment rescheduled successfully", 
+        "new_date": reschedule_data.new_date.isoformat(),
+        "new_time": reschedule_data.new_time
+    }
 
 @api_router.patch("/appointments/{appointment_id}/cancel")
 async def cancel_appointment_user(appointment_id: str):

@@ -1,0 +1,129 @@
+{
+  "timestamp": "2026-03-03T11:58:26.732400",
+  "total_tests": 24,
+  "passed_tests": 15,
+  "failed_tests": 9,
+  "success_rate": 62.5,
+  "test_results": [
+    {
+      "test": "Health Check",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Root Endpoint",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Get Services",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Services Structure Validation",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Card Pick-up Service Present",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Get Disabled Dates",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Disabled Dates Structure",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Login",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Token Retrieved",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Stats",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Stats Structure",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Create Appointment",
+      "status": "FAILED",
+      "message": "Expected 200, got 422"
+    },
+    {
+      "test": "Appointment Creation",
+      "status": "FAILED",
+      "message": "Failed to create appointment"
+    },
+    {
+      "test": "Admin Get Appointments",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Admin Appointments List Structure",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Invalid Date (Weekend)",
+      "status": "FAILED",
+      "message": "Expected 400, got 422"
+    },
+    {
+      "test": "Invalid Phone Format",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Unauthorized Admin Stats",
+      "status": "FAILED",
+      "message": "Expected 401, got 200"
+    },
+    {
+      "test": "Unauthorized Admin Appointments",
+      "status": "PASSED",
+      "message": ""
+    },
+    {
+      "test": "Card Pick-up Without NIN (Should Fail)",
+      "status": "FAILED",
+      "message": "Expected 400, got 422"
+    },
+    {
+      "test": "Card Pick-up With NIN",
+      "status": "FAILED",
+      "message": "Expected 200, got 422"
+    },
+    {
+      "test": "NIN Field Saved Correctly",
+      "status": "FAILED",
+      "message": "NIN not saved properly"
+    },
+    {
+      "test": "Valid Uganda Phone Number",
+      "status": "FAILED",
+      "message": "Expected 200, got 422"
+    },
+    {
+      "test": "Race Condition - Basic Handling",
+      "status": "FAILED",
+      "message": "No successful appointments from 3 attempts"
+    }
+  ]
+}

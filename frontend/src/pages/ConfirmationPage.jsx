@@ -8,11 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   CheckCircle, Download, Home, Loader2, Calendar, 
-  MapPin, Phone, Mail, FileText, ExternalLink, AlertCircle 
+  MapPin, Phone, Mail, FileText, ExternalLink, AlertCircle, Clock 
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+const TIME_WINDOW = "10:00 AM – 1:00 PM";
 
 const serviceNames = {
   fresh_registration: "Fresh Registration",
@@ -54,6 +56,7 @@ export default function ConfirmationPage() {
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
+      const timeWindow = appointment.time_window || TIME_WINDOW;
       
       // Header
       doc.setFillColor(26, 26, 26);
@@ -69,7 +72,7 @@ export default function ConfirmationPage() {
       // Title
       doc.setTextColor(217, 0, 0);
       doc.setFontSize(16);
-      doc.text("NATIONAL ID APPOINTMENT CONFIRMATION", pageWidth / 2, 60, { align: "center" });
+      doc.text("NATIONAL ID APPOINTMENT CONFIRMATION LETTER", pageWidth / 2, 60, { align: "center" });
       
       // Appointment Details
       doc.setTextColor(26, 26, 26);
@@ -78,15 +81,16 @@ export default function ConfirmationPage() {
       const startY = 80;
       const lineHeight = 12;
       const leftMargin = 25;
-      const labelWidth = 50;
+      const labelWidth = 55;
       
       const details = [
-        ["Reference Number:", appointment.reference_number],
-        ["Full Name:", `${appointment.surname} ${appointment.first_name}`],
+        ["Booking Reference:", appointment.reference_number],
+        ["Applicant Name:", `${appointment.first_name} ${appointment.surname}`],
         ["Email:", appointment.email],
         ["Phone:", appointment.phone],
         ["Service Type:", serviceNames[appointment.service_type] || appointment.service_type],
         ["Appointment Date:", format(parseISO(appointment.appointment_date), "EEEE, MMMM do, yyyy")],
+        ["Time Window:", timeWindow],
         ["Status:", appointment.status.toUpperCase()]
       ];
       
@@ -98,10 +102,26 @@ export default function ConfirmationPage() {
         doc.text(row[1], leftMargin + labelWidth, y);
       });
       
+      // Important Attendance Instruction
+      const attendanceY = startY + (details.length * lineHeight) + 15;
+      doc.setFillColor(217, 0, 0);
+      doc.rect(leftMargin - 5, attendanceY - 8, pageWidth - (leftMargin * 2) + 10, 30, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("IMPORTANT ATTENDANCE INSTRUCTION", leftMargin, attendanceY);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      const attendanceText = `You are required to present yourself at the Uganda High Commission within the scheduled timeframe (${timeWindow}) on your selected appointment date. Late arrivals outside this timeframe may not be attended to.`;
+      const splitAttendance = doc.splitTextToSize(attendanceText, pageWidth - (leftMargin * 2));
+      doc.text(splitAttendance, leftMargin, attendanceY + 10);
+      
       // Venue Section
-      const venueY = startY + (details.length * lineHeight) + 20;
+      const venueY = attendanceY + 45;
       doc.setFillColor(252, 220, 4);
-      doc.rect(leftMargin - 5, venueY - 8, pageWidth - (leftMargin * 2) + 10, 45, 'F');
+      doc.rect(leftMargin - 5, venueY - 8, pageWidth - (leftMargin * 2) + 10, 40, 'F');
       
       doc.setTextColor(26, 26, 26);
       doc.setFont("helvetica", "bold");
@@ -115,11 +135,11 @@ export default function ConfirmationPage() {
       doc.text("London WC2N 5DX, United Kingdom", leftMargin, venueY + 32);
       
       // Important Notice
-      const noticeY = venueY + 60;
+      const noticeY = venueY + 55;
       doc.setTextColor(217, 0, 0);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
-      doc.text("IMPORTANT NOTICE", leftMargin, noticeY);
+      doc.text("PRE-REGISTRATION NOTICE", leftMargin, noticeY);
       
       doc.setTextColor(75, 85, 99);
       doc.setFont("helvetica", "normal");
@@ -230,7 +250,7 @@ export default function ConfirmationPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-[#4B5563]">Reference Number</p>
+                  <p className="text-sm text-[#4B5563]">Booking Reference</p>
                   <p className="font-mono font-semibold text-[#1A1A1A]" data-testid="reference-number">
                     {appointment.reference_number}
                   </p>
@@ -246,7 +266,7 @@ export default function ConfirmationPage() {
               <div className="border-t pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-[#4B5563]">Full Name</p>
+                    <p className="text-sm text-[#4B5563]">Applicant Name</p>
                     <p className="font-medium text-[#1A1A1A]">
                       {appointment.first_name} {appointment.surname}
                     </p>
@@ -280,19 +300,41 @@ export default function ConfirmationPage() {
               </div>
 
               <div className="border-t pt-4">
-                <div className="flex items-start gap-2">
-                  <Calendar className="w-4 h-4 text-[#D90000] mt-1" />
-                  <div>
-                    <p className="text-sm text-[#4B5563]">Appointment Date</p>
-                    <p className="font-semibold text-[#1A1A1A] text-lg">
-                      {format(parseISO(appointment.appointment_date), "EEEE, MMMM do, yyyy")}
-                    </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-start gap-2">
+                    <Calendar className="w-4 h-4 text-[#D90000] mt-1" />
+                    <div>
+                      <p className="text-sm text-[#4B5563]">Appointment Date</p>
+                      <p className="font-semibold text-[#1A1A1A] text-lg">
+                        {format(parseISO(appointment.appointment_date), "EEEE, MMMM do, yyyy")}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Clock className="w-4 h-4 text-[#D90000] mt-1" />
+                    <div>
+                      <p className="text-sm text-[#4B5563]">Time Window</p>
+                      <p className="font-semibold text-[#1A1A1A] text-lg">
+                        {appointment.time_window || TIME_WINDOW}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Important Attendance Alert */}
+        <Alert className="mb-6 border-[#D90000] bg-red-50">
+          <AlertCircle className="h-5 w-5 text-[#D90000]" />
+          <AlertTitle className="text-[#D90000] font-semibold">Important Attendance Instruction</AlertTitle>
+          <AlertDescription className="text-[#4B5563] mt-2 font-medium">
+            You are required to present yourself at the Uganda High Commission within the scheduled 
+            timeframe ({appointment.time_window || TIME_WINDOW}) on your selected appointment date. 
+            <span className="text-[#D90000]"> Late arrivals outside this timeframe may not be attended to.</span>
+          </AlertDescription>
+        </Alert>
 
         {/* Venue Card */}
         <Card className="shadow-lg border-0 mb-6 bg-[#FCDC04]">

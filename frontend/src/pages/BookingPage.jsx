@@ -9,18 +9,50 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Calendar } from "@/components/ui/calendar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { 
   UserPlus, RefreshCw, CreditCard, Edit3, ChevronLeft, ChevronRight, 
-  Check, Loader2, AlertCircle, ExternalLink, Info, Package 
+  Check, Loader2, AlertCircle, ExternalLink, Info, Package, Clock 
 } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// Time slots available: 10:00 AM - 1:00 PM
+const TIME_SLOTS = [
+  { value: "10:00", label: "10:00 AM" },
+  { value: "10:30", label: "10:30 AM" },
+  { value: "11:00", label: "11:00 AM" },
+  { value: "11:30", label: "11:30 AM" },
+  { value: "12:00", label: "12:00 PM" },
+  { value: "12:30", label: "12:30 PM" }
+];
+
+const TIME_WINDOW = "10:00 AM – 1:00 PM";
+
+// Scheduling rules per service type
+const SCHEDULING_RULES = {
+  card_pickup: {
+    days: "Monday to Friday",
+    description: "Card Pick-up appointments are available Monday to Friday, 10:00 AM – 1:00 PM"
+  },
+  default: {
+    days: "Monday, Wednesday, and Friday",
+    description: "Appointments are available Monday, Wednesday, and Friday, 10:00 AM – 1:00 PM"
+  }
+};
 
 const serviceDetails = {
   fresh_registration: {
     title: "Fresh Registration",
     icon: UserPlus,
     color: "bg-blue-600",
+    schedulingRule: "default",
     below_18: {
       title: "First-Time Applicant Below Age of 18",
       requirements: [
@@ -42,6 +74,7 @@ const serviceDetails = {
     title: "Renewal of National ID",
     icon: RefreshCw,
     color: "bg-emerald-500",
+    schedulingRule: "default",
     requirements: [
       "Your current National ID (original or photocopy).",
       "If you lost your National ID and have no photocopy, ensure you have your National Identification Number (NIN) correctly written down.",
@@ -52,6 +85,7 @@ const serviceDetails = {
     title: "Get First ID",
     icon: CreditCard,
     color: "bg-violet-500",
+    schedulingRule: "default",
     description: "This service is for persons who were registered when they were below the age of 16 years and were issued a National Identification Number (NIN) but have not yet received a physical National ID card. Now that they have attained 16 years of age, they need to update their records so that the ID card can be printed.",
     requirements: [
       "National Identification Number (NIN) only."
@@ -61,6 +95,7 @@ const serviceDetails = {
     title: "Change of Particulars",
     icon: Edit3,
     color: "bg-amber-500",
+    schedulingRule: "default",
     description: "This service is for persons already registered and possessing a National Identification Number (NIN) who wish to make changes to their name, date of birth, place of birth, or other personal details. The requirements vary depending on the specific change requested.",
     link: "https://www.nira.go.ug/publications/the-guide-to-renewing-replacing-updating-your-national-id",
     requirements: [
@@ -71,6 +106,7 @@ const serviceDetails = {
     title: "Card Pick-up",
     icon: Package,
     color: "bg-rose-500",
+    schedulingRule: "card_pickup",
     description: "This service is for persons who have completed the registration process and their National ID card is ready for collection.",
     requirements: [
       "Your National Identification Number (NIN) or Application Number.",
@@ -121,21 +157,36 @@ export default function BookingPage() {
     phone: "",
     service_type: preselectedService || "",
     appointment_date: null,
+    appointment_time: "",
     nin_or_application_number: ""
   });
 
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    fetchDisabledDates();
     if (preselectedService && services.find(s => s.id === preselectedService)) {
       setFormData(prev => ({ ...prev, service_type: preselectedService }));
+      fetchDisabledDates(preselectedService);
+    } else {
+      fetchDisabledDates();
     }
   }, [preselectedService]);
 
-  const fetchDisabledDates = async () => {
+  // Refetch disabled dates when service type changes
+  useEffect(() => {
+    if (formData.service_type) {
+      fetchDisabledDates(formData.service_type);
+      // Reset date and time when service changes
+      setFormData(prev => ({ ...prev, appointment_date: null, appointment_time: "" }));
+    }
+  }, [formData.service_type]);
+
+  const fetchDisabledDates = async (serviceType = null) => {
     try {
-      const response = await axios.get(`${API}/disabled-dates`);
+      const url = serviceType 
+        ? `${API}/disabled-dates?service_type=${serviceType}`
+        : `${API}/disabled-dates`;
+      const response = await axios.get(url);
       const dates = response.data.disabled_dates.map(d => parseISO(d));
       setDisabledDates(dates);
     } catch (error) {
@@ -185,6 +236,7 @@ export default function BookingPage() {
   const validateStep3 = () => {
     const newErrors = {};
     if (!formData.appointment_date) newErrors.appointment_date = "Please select an appointment date";
+    if (!formData.appointment_time) newErrors.appointment_time = "Please select a time slot";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -209,6 +261,7 @@ export default function BookingPage() {
         ...formData,
         phone: formData.phone.replace(/\s/g, ''),
         appointment_date: format(formData.appointment_date, "yyyy-MM-dd"),
+        appointment_time: formData.appointment_time,
         nin_or_application_number: formData.nin_or_application_number || null
       };
       
@@ -473,44 +526,96 @@ export default function BookingPage() {
             </>
           )}
 
-          {/* Step 3: Date Selection */}
+          {/* Step 3: Date and Time Selection */}
           {step === 3 && (
             <>
               <CardHeader>
-                <CardTitle>Select Appointment Date</CardTitle>
+                <CardTitle className="text-lg md:text-xl">Select Appointment Date & Time</CardTitle>
                 <CardDescription>
-                  Appointments are available on Tuesday, Wednesday, and Friday only. 
-                  Weekends and public holidays are not available.
+                  {formData.service_type === "card_pickup" 
+                    ? "Card Pick-up appointments are available Monday to Friday, 10:00 AM – 1:00 PM."
+                    : "Appointments are available Monday, Wednesday, and Friday only, 10:00 AM – 1:00 PM."
+                  }
+                  {" "}Public holidays are not available.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {errors.appointment_date && (
+                {(errors.appointment_date || errors.appointment_time) && (
                   <Alert variant="destructive" className="mb-4">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{errors.appointment_date}</AlertDescription>
+                    <AlertDescription>
+                      {errors.appointment_date || errors.appointment_time}
+                    </AlertDescription>
                   </Alert>
                 )}
-                <div className="flex justify-center">
-                  <Calendar
-                    mode="single"
-                    selected={formData.appointment_date}
-                    onSelect={(date) => handleInputChange("appointment_date", date)}
-                    disabled={(date) => {
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      return date < today || isDateDisabled(date);
-                    }}
-                    className="rounded-md border shadow-sm"
-                    data-testid="appointment-calendar"
-                  />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Calendar */}
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Select Date</Label>
+                    <div className="flex justify-center">
+                      <Calendar
+                        mode="single"
+                        selected={formData.appointment_date}
+                        onSelect={(date) => handleInputChange("appointment_date", date)}
+                        disabled={(date) => {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          return date < today || isDateDisabled(date);
+                        }}
+                        className="rounded-md border shadow-sm"
+                        data-testid="appointment-calendar"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Time Slots */}
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Select Time Slot</Label>
+                    <div className="bg-[#F9FAFB] p-4 rounded-lg border">
+                      <div className="flex items-center gap-2 mb-4 text-sm text-[#4B5563]">
+                        <Clock className="w-4 h-4" />
+                        <span>Time Window: {TIME_WINDOW}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {TIME_SLOTS.map((slot) => (
+                          <button
+                            key={slot.value}
+                            type="button"
+                            data-testid={`time-slot-${slot.value}`}
+                            onClick={() => handleInputChange("appointment_time", slot.value)}
+                            className={`p-3 rounded-md text-sm font-medium transition-all ${
+                              formData.appointment_time === slot.value
+                                ? 'bg-[#D90000] text-white'
+                                : 'bg-white border border-gray-300 text-[#1A1A1A] hover:border-[#D90000]'
+                            }`}
+                          >
+                            {slot.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                {formData.appointment_date && (
+                
+                {/* Selection Summary */}
+                {formData.appointment_date && formData.appointment_time && (
                   <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
                     <p className="text-green-800 font-medium">
-                      Selected Date: {format(formData.appointment_date, "EEEE, MMMM do, yyyy")}
+                      Selected: {format(formData.appointment_date, "EEEE, MMMM do, yyyy")} at {TIME_SLOTS.find(s => s.value === formData.appointment_time)?.label}
                     </p>
                   </div>
                 )}
+                
+                {/* Important Notice */}
+                <Alert className="mt-4 border-[#D90000] bg-red-50">
+                  <AlertCircle className="h-4 w-4 text-[#D90000]" />
+                  <AlertDescription className="text-[#D90000] font-medium">
+                    You are required to present yourself at the Uganda High Commission within the scheduled 
+                    timeframe ({TIME_WINDOW}) on your selected appointment date. Late arrivals outside 
+                    this timeframe may not be attended to.
+                  </AlertDescription>
+                </Alert>
 
                 {/* Summary */}
                 <div className="mt-6 p-4 bg-[#F9FAFB] rounded-lg border">
@@ -531,6 +636,10 @@ export default function BookingPage() {
                     <div className="flex justify-between">
                       <span className="text-[#4B5563]">Service:</span>
                       <span className="font-medium">{selectedService?.title}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#4B5563]">Time Window:</span>
+                      <span className="font-medium">{TIME_WINDOW}</span>
                     </div>
                   </div>
                 </div>
