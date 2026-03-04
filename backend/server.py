@@ -1000,7 +1000,7 @@ async def get_all_appointments(
     date_to: Optional[str] = None,
     search: Optional[str] = None,
     nin: Optional[str] = None,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Get all appointments with enhanced search (admin only)"""
     if authorization and authorization.startswith("Bearer "):
@@ -1036,7 +1036,7 @@ async def get_all_appointments(
     return appointments
 
 @api_router.get("/admin/stats")
-async def get_appointment_stats(authorization: Optional[str] = None):
+async def get_appointment_stats(authorization: Optional[str] = Header(None)):
     """Get comprehensive appointment statistics (admin only)"""
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
@@ -1101,7 +1101,7 @@ async def get_appointment_stats(authorization: Optional[str] = None):
 async def get_capacity_utilization(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Get capacity utilization for scheduling planning"""
     if authorization and authorization.startswith("Bearer "):
@@ -1145,7 +1145,7 @@ async def get_capacity_utilization(
 async def update_appointment_status(
     appointment_id: str,
     status: str,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Update appointment status (admin only)"""
     user_info = {"id": "system", "username": "system"}
@@ -1184,7 +1184,7 @@ async def update_appointment_status(
 async def reject_card_pickup(
     appointment_id: str,
     reject_data: RejectRequest,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Reject a Card Pickup appointment with reason (card not ready)"""
     user_info = {"sub": "system", "username": "system"}
@@ -1233,7 +1233,7 @@ async def reject_card_pickup(
 @api_router.post("/admin/appointments/{appointment_id}/check-in")
 async def check_in_appointment(
     appointment_id: str,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Mark an appointment as checked in (front desk)"""
     user_info = {"sub": "system", "username": "system"}
@@ -1271,7 +1271,7 @@ async def check_in_appointment(
 @api_router.post("/admin/appointments/{appointment_id}/mark-served")
 async def mark_appointment_served(
     appointment_id: str,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Mark an appointment as served/completed (front desk)"""
     user_info = {"sub": "system", "username": "system"}
@@ -1307,7 +1307,7 @@ async def mark_appointment_served(
 @api_router.post("/admin/bulk-reschedule")
 async def bulk_reschedule_appointments(
     bulk_data: BulkRescheduleRequest,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Bulk reschedule appointments by date or service type (office closure, etc.)"""
     user_info = {"sub": "system", "username": "system"}
@@ -1370,7 +1370,7 @@ async def bulk_reschedule_appointments(
     }
 
 @api_router.delete("/admin/appointments/{appointment_id}")
-async def delete_appointment(appointment_id: str, authorization: Optional[str] = None):
+async def delete_appointment(appointment_id: str, authorization: Optional[str] = Header(None)):
     """Delete an appointment (admin only)"""
     user_info = {"sub": "system", "username": "system"}
     if authorization and authorization.startswith("Bearer "):
@@ -1406,7 +1406,7 @@ async def get_audit_logs(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     limit: int = 100,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Get audit logs (super admin only)"""
     if authorization and authorization.startswith("Bearer "):
@@ -1438,7 +1438,7 @@ async def export_audit_logs(
     format: str = "csv",
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Export audit logs as CSV"""
     if authorization and authorization.startswith("Bearer "):
@@ -1482,7 +1482,7 @@ async def export_audit_logs(
 
 # User Management Routes (Super Admin)
 @api_router.get("/admin/users")
-async def get_admin_users(authorization: Optional[str] = None):
+async def get_admin_users(authorization: Optional[str] = Header(None)):
     """Get all admin users (super admin only)"""
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
@@ -1494,7 +1494,7 @@ async def get_admin_users(authorization: Optional[str] = None):
     return users
 
 @api_router.post("/admin/users")
-async def create_admin_user(user_data: AdminUserCreate, authorization: Optional[str] = None):
+async def create_admin_user(user_data: AdminUserCreate, authorization: Optional[str] = Header(None)):
     """Create a new admin user (super admin only)"""
     user_info = {"sub": "system", "username": "system"}
     if authorization and authorization.startswith("Bearer "):
@@ -1538,7 +1538,7 @@ async def create_admin_user(user_data: AdminUserCreate, authorization: Optional[
 @api_router.get("/admin/reports/daily-worklist")
 async def get_daily_worklist(
     report_date: Optional[str] = None,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Get daily worklist for a session/day sorted by service type"""
     if authorization and authorization.startswith("Bearer "):
@@ -1570,7 +1570,7 @@ async def get_daily_worklist(
 async def download_daily_worklist(
     report_date: Optional[str] = None,
     format: str = "csv",
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Download daily worklist as CSV"""
     if authorization and authorization.startswith("Bearer "):
@@ -1614,7 +1614,7 @@ async def download_daily_worklist(
 async def get_cancellation_report(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """Get cancellation and rejection report"""
     if authorization and authorization.startswith("Bearer "):
