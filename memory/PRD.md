@@ -8,46 +8,42 @@ Build a web-based application for booking appointments for National ID registrat
 ### Backend (FastAPI + MongoDB)
 - **Models**: Appointment (with version field for optimistic locking), AdminUser (with roles), AuditLog
 - **Race Condition Handling**: Atomic operations with retry logic, unique index on reference_number
-- **RBAC**: Role-Based Access Control (Super Admin, Operations Admin, Front Desk)
+- **RBAC**: Role-Based Access Control (Super Admin, Operations Admin, Front Desk) with proper HTTP Header authorization
 - **Audit Logging**: All admin actions are logged for accountability
+- **Server-side Reporting**: PDF generation (ReportLab), CSV exports for worklist/audit logs
 - **API Endpoints**:
-  - `POST /api/appointments` - Create appointment (with race condition handling)
-  - `GET /api/appointments/:id` - Get single appointment by ID
-  - `GET /api/appointments/by-reference/:ref` - Get appointment by reference number
-  - `PATCH /api/appointments/:id/reschedule` - Reschedule appointment (user self-service)
-  - `PATCH /api/appointments/:id/cancel` - Cancel appointment (user self-service)
-  - `GET /api/appointments/:id/pdf` - Download PDF
-  - `POST /api/admin/login` - Admin authentication
-  - `GET /api/admin/appointments` - List all (admin) with search & filters
-  - `GET /api/admin/stats` - Get statistics
-  - `PATCH /api/admin/appointments/:id` - Update status
-  - `POST /api/admin/appointments/:id/check-in` - Check-in appointment
-  - `POST /api/admin/appointments/:id/mark-served` - Mark as served
-  - `POST /api/admin/appointments/:id/reject` - Reject with reason (Card Pick-up)
-  - `POST /api/admin/bulk-reschedule` - Bulk reschedule by date/service
-  - `DELETE /api/admin/appointments/:id` - Delete appointment
-  - `GET /api/admin/audit-logs` - View audit logs
-  - `GET /api/admin/audit-logs/export` - Export audit logs as CSV
-  - `GET /api/admin/users` - List admin users (Super Admin only)
-  - `POST /api/admin/users` - Create admin user (Super Admin only)
-  - `GET /api/admin/reports/daily-worklist` - Get daily worklist
-  - `GET /api/admin/reports/daily-worklist/download` - Download worklist CSV
-  - `GET /api/services` - Get service requirements
-  - `GET /api/disabled-dates` - Get disabled dates by service type
+  - Public:
+    - `POST /api/appointments` - Create appointment
+    - `GET /api/appointments/:id` - Get appointment by ID
+    - `GET /api/appointments/by-reference/:ref` - Get by reference
+    - `GET /api/capacity` - **Real-time capacity/availability (public)**
+    - `GET /api/disabled-dates` - Service-specific disabled dates
+    - `GET /api/services` - Service requirements
+    - `GET /api/time-slots` - Available time slots
+  - User Self-Service:
+    - `PATCH /api/appointments/:id/reschedule` - Reschedule
+    - `PATCH /api/appointments/:id/cancel` - Cancel
+    - `GET /api/appointments/:id/pdf` - Download PDF
+  - Admin (requires JWT):
+    - Full CRUD for appointments
+    - Check-in / Mark Served
+    - Reject with reason (Card Pick-up)
+    - Bulk reschedule
+    - Audit logs view/export
+    - User management (Super Admin only)
+    - Reports (daily worklist download)
 
 ### Frontend (React + Tailwind CSS + Shadcn UI)
+- **Component Library**: Shadcn/UI (built on Radix UI) - excellent for accessibility & responsiveness
 - **Pages**:
-  - Landing Page - Hero + 5 Services overview + Admin Portal (top right) + Manage Appointment
-  - Booking Flow - Multi-step form (Personal Details -> Service Selection -> Date Selection)
+  - Landing Page - Hero + 5 Services + Admin Portal + Manage Appointment
+  - Booking Flow - Multi-step form with:
+    * **Real-time capacity indicator** with color-coded calendar
+    * Accessibility-first design with ARIA attributes
+    * Mobile-responsive layout
   - Confirmation Page - Success view + PDF download
-  - Manage Appointment Page - View, Reschedule, Cancel existing appointments
-  - Admin Login
-  - Admin Dashboard - Enhanced with multiple tabs:
-    * Dashboard: Stats overview (total, today, checked-in, served, by service)
-    * Appointments: Search, filter, check-in, mark-served, reject, bulk reschedule
-    * Reports: Daily worklist download
-    * Audit Logs: View/export activity logs (Super Admin, Operations Admin)
-    * User Management: Create/view admin users (Super Admin only)
+  - Manage Appointment Page - View, Reschedule, Cancel
+  - Admin Dashboard - 5 tabs (Dashboard, Appointments, Reports, Audit Logs, User Management)
 
 ## User Personas
 1. **Ugandan Diaspora in UK** - Need National ID services, want easy online booking
@@ -55,51 +51,52 @@ Build a web-based application for booking appointments for National ID registrat
 3. **Operations Admin** - View audit logs, manage appointments, generate reports
 4. **Super Admin** - Full access including user management
 
-## Core Requirements (Static)
+## Core Requirements (All Implemented)
 - [x] Guest booking (no login required)
 - [x] Multi-step booking form with validation
-- [x] 5 Service types: Fresh Registration, Renewal, Get First ID, Change of Particulars, Card Pick-up
-- [x] Card Pick-up and Renewal require NIN/Application Number
-- [x] Service selection with requirements display
-- [x] Calendar with service-specific restricted dates:
+- [x] 5 Service types with service-specific rules
+- [x] **Real-time capacity indicator** on booking page
+- [x] Calendar with color-coded availability (green/yellow/orange/red)
+- [x] Service-specific scheduling:
   - Fresh Registration, Renewal, Get First ID, Change of Particulars: Mon, Wed, Fri
   - Card Pick-up: Mon-Fri
 - [x] Time window: 10:00 AM - 1:00 PM (UK Time)
 - [x] UK and Uganda public holidays disabled
-- [x] Phone validation for UK (+44) and Uganda (+256)
-- [x] International name validation (security)
-- [x] PDF generation (ReportLab on backend)
-- [x] Admin authentication (JWT)
-- [x] Admin dashboard with RBAC
-- [x] Appointment management (view, filter, update status, delete)
-- [x] Check-in / Mark Served functionality
+- [x] NIN required for Card Pick-up AND Renewal services
+- [x] **Accessibility**: ARIA labels, keyboard navigation, screen reader support
+- [x] **Mobile-first responsive design** (tested at 375px)
+- [x] PDF generation (server-side with ReportLab)
+- [x] Admin authentication with RBAC (Super Admin, Operations Admin, Front Desk)
+- [x] Audit logging for all admin actions
+- [x] Check-in / Mark Served workflow
 - [x] Reject with reason (Card Pick-up)
 - [x] Bulk reschedule appointments
-- [x] Audit logging for all admin actions
-- [x] User management (Super Admin only)
-- [x] CSV export functionality
-- [x] Mobile-first responsive design
+- [x] CSV exports (worklist, audit logs, appointments)
 - [x] Race condition handling for concurrent submissions
 - [x] User self-service: Manage appointments (reschedule/cancel)
 
+## Reliability Features
+- **Responsive SPA**: React with hot reload, responsive Tailwind CSS
+- **Component Library**: Shadcn/UI (Radix primitives) with built-in accessibility
+- **Server-side Reporting**: PDF generation with ReportLab, CSV exports
+- **Atomic Database Operations**: MongoDB with optimistic locking
+- **RBAC with Header-based Auth**: Proper HTTP header capture with FastAPI Header()
+
 ## What's Been Implemented (March 2026)
 - Full booking flow with service-specific scheduling
-- Confirmation page with PDF download
-- Manage Appointment feature (reschedule/cancel)
-- Enhanced Admin Dashboard with:
-  * Dashboard tab with stats
-  * Appointments tab with search, filters, actions
-  * Reports tab with daily worklist download
-  * Audit Logs tab (Super Admin, Operations Admin)
-  * User Management tab (Super Admin only)
-- RBAC with proper HTTP Header authorization
-- Audit logging for all admin actions
-- Bulk reschedule functionality
+- **Real-time capacity indicator** with:
+  - Public `/api/capacity` endpoint
+  - Availability legend (Available, Filling Up, Limited, Full)
+  - Color-coded calendar dates
+  - Selected date capacity info with progress bar
+- Enhanced accessibility throughout
+- Mobile-responsive design (375px viewport tested)
+- Complete admin system with RBAC
+- Server-side PDF generation and CSV exports
 
 ## Prioritized Backlog
 
-### P0 - Critical (Blocks Core Functionality)
-- [x] Admin system overhaul completed
+### P0 - Critical
 - [ ] Configure SendGrid API key for email sending
 
 ### P1 - Important
@@ -107,12 +104,7 @@ Build a web-based application for booking appointments for National ID registrat
 
 ### P2 - Nice to Have
 - [ ] Add SMS notifications via Twilio
-- [ ] Add scheduled auto-reports
-- [ ] Add print-friendly appointment slip
-
-## Next Tasks
-1. **Configure SendGrid** - Add SENDGRID_API_KEY to backend/.env for email sending
-2. **Appointment reminders** - Send reminder emails 24h before appointment
+- [ ] Scheduled auto-reports (daily summary to admins)
 
 ## Test Credentials
 - **Admin Username:** admin
@@ -120,7 +112,8 @@ Build a web-based application for booking appointments for National ID registrat
 - **Admin Role:** super_admin
 
 ## Key Technical Notes
-- RBAC is enforced via JWT token with role in payload
-- All admin endpoints require Authorization header with Bearer token
-- Audit logs are immutable and include user, action, resource, details
-- Email sending depends on SENDGRID_API_KEY environment variable
+- Public capacity API: `GET /api/capacity?service_type=<type>` - no auth required
+- NIN required for: `card_pickup` AND `renewal` services
+- Capacity levels calculated: <50% = available, 50-80% = moderate, 80-100% = limited, 100% = full
+- All form inputs have autocomplete attributes for better mobile UX
+- Calendar modifiers style dates based on capacity level
