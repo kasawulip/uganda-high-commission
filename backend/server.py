@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Response, Header, Query
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -7,7 +7,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, date, timedelta
 from enum import Enum
@@ -17,12 +17,13 @@ import jwt
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 import base64
+import csv
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -52,6 +53,19 @@ JWT_ALGORITHM = "HS256"
 # SendGrid Configuration
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@ugandahighcommission.co.uk')
+
+# Admin Roles Enum
+class AdminRole(str, Enum):
+    SUPER_ADMIN = "super_admin"
+    OPERATIONS_ADMIN = "operations_admin"
+    FRONT_DESK = "front_desk"
+
+# Role permissions
+ROLE_PERMISSIONS = {
+    AdminRole.SUPER_ADMIN: ["all"],
+    AdminRole.OPERATIONS_ADMIN: ["appointments", "reports", "bulk_operations", "exports"],
+    AdminRole.FRONT_DESK: ["check_in", "verify", "mark_served", "view_appointments"]
+}
 
 # Service Types Enum
 class ServiceType(str, Enum):
@@ -146,6 +160,15 @@ class Appointment(BaseModel):
     time_window: str = "10:00 AM – 1:00 PM"  # Always this window
     nin_or_application_number: Optional[str] = None
     status: str = "confirmed"
+    rejection_reason: Optional[str] = None
+    rejected_at: Optional[str] = None
+    rejected_by: Optional[str] = None
+    checked_in: bool = False
+    checked_in_at: Optional[str] = None
+    checked_in_by: Optional[str] = None
+    served: bool = False
+    served_at: Optional[str] = None
+    served_by: Optional[str] = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     version: int = 1  # For optimistic locking to handle race conditions
 
@@ -153,9 +176,26 @@ class RescheduleRequest(BaseModel):
     new_date: date
     new_time: str = Field(..., pattern=r'^(10:00|10:30|11:00|11:30|12:00|12:30)$')
 
+class RejectRequest(BaseModel):
+    reason: str = Field(..., min_length=10)
+
+class BulkRescheduleRequest(BaseModel):
+    original_date: Optional[date] = None
+    service_type: Optional[str] = None
+    new_date: date
+    new_time: str = Field(..., pattern=r'^(10:00|10:30|11:00|11:30|12:00|12:30)$')
+    reason: str = Field(..., min_length=10)
+
 class AdminLogin(BaseModel):
     username: str
     password: str
+
+class AdminUserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6)
+    email: EmailStr
+    full_name: str
+    role: AdminRole = AdminRole.FRONT_DESK
 
 class AdminUser(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -163,13 +203,34 @@ class AdminUser(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     username: str
     password_hash: str
+    email: str = ""
+    full_name: str = ""
+    role: str = "front_desk"
+    active: bool = True
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    last_login: Optional[str] = None
+
+class AuditLog(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    user_id: str
+    username: str
+    action: str  # login, logout, create, update, delete, reject, bulk_reschedule, etc.
+    resource_type: str  # appointment, admin_user, holiday, etc.
+    resource_id: Optional[str] = None
+    details: dict = Field(default_factory=dict)  # from/to values, etc.
+    ip_address: Optional[str] = None
 
 class AppointmentStats(BaseModel):
     total: int
     pending: int
     completed: int
     cancelled: int
+    rejected: int
+    checked_in: int
+    served: int
     by_service: dict
     by_date: dict
 
@@ -228,12 +289,33 @@ SERVICE_REQUIREMENTS = {
 }
 
 # Helper Functions
+# Audit logging helper
+async def log_audit(user_id: str, username: str, action: str, resource_type: str, 
+                   resource_id: str = None, details: dict = None, ip_address: str = None):
+    """Log an audit entry"""
+    audit_entry = {
+        "id": str(uuid.uuid4()),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "user_id": user_id,
+        "username": username,
+        "action": action,
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+        "details": details or {},
+        "ip_address": ip_address
+    }
+    await db.audit_logs.insert_one(audit_entry)
+    logger.info(f"Audit: {username} - {action} - {resource_type} - {resource_id}")
+
 # Service scheduling rules
 # Fresh Registration, GetFirstID, Change of Particulars, Renewal: Mon, Wed, Fri only
 # Card Pickup (Card Issuance): Mon-Fri
 STANDARD_SERVICES = [ServiceType.FRESH_REGISTRATION, ServiceType.GET_FIRST_ID, 
                      ServiceType.CHANGE_OF_PARTICULARS, ServiceType.RENEWAL]
 CARD_PICKUP_SERVICES = [ServiceType.CARD_PICKUP]
+
+# Services requiring NIN
+NIN_REQUIRED_SERVICES = [ServiceType.CARD_PICKUP, ServiceType.RENEWAL]
 
 # Time slots available: 10:00 AM - 1:00 PM
 TIME_SLOTS = ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30"]
@@ -625,11 +707,12 @@ async def create_appointment(appointment_data: AppointmentCreate):
             detail=f"Invalid time slot. Available slots are: {', '.join(TIME_SLOTS)}"
         )
     
-    # Validate NIN for card pickup
-    if appointment_data.service_type == ServiceType.CARD_PICKUP and not appointment_data.nin_or_application_number:
+    # Validate NIN for services that require it (Card Pickup and Renewal)
+    if appointment_data.service_type in NIN_REQUIRED_SERVICES and not appointment_data.nin_or_application_number:
+        service_name = "Card Pick-up" if appointment_data.service_type == ServiceType.CARD_PICKUP else "Renewal"
         raise HTTPException(
             status_code=400,
-            detail="NIN or Application Number is required for Card Pick-up service."
+            detail=f"NIN or Application Number is required for {service_name} service."
         )
     
     # Race condition handling: Use atomic operation with retry logic
@@ -845,27 +928,69 @@ async def download_appointment_pdf(appointment_id: str):
 # Admin Routes
 @api_router.post("/admin/login")
 async def admin_login(credentials: AdminLogin):
-    """Admin login"""
+    """Admin login with audit logging"""
     admin = await db.admin_users.find_one({"username": credentials.username}, {"_id": 0})
     
     if not admin:
+        # Log failed login attempt
+        await db.audit_logs.insert_one({
+            "id": str(uuid.uuid4()),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "user_id": "unknown",
+            "username": credentials.username,
+            "action": "login_failed",
+            "resource_type": "auth",
+            "details": {"reason": "user_not_found"}
+        })
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    if not admin.get('active', True):
+        raise HTTPException(status_code=401, detail="Account is deactivated")
+    
     if not bcrypt.checkpw(credentials.password.encode(), admin['password_hash'].encode()):
+        # Log failed login attempt
+        await db.audit_logs.insert_one({
+            "id": str(uuid.uuid4()),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "user_id": admin['id'],
+            "username": credentials.username,
+            "action": "login_failed",
+            "resource_type": "auth",
+            "details": {"reason": "invalid_password"}
+        })
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Update last login
+    await db.admin_users.update_one(
+        {"id": admin['id']},
+        {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Log successful login
+    await log_audit(admin['id'], admin['username'], "login_success", "auth")
     
     # Generate JWT token
     token = jwt.encode(
         {
             "sub": admin['id'],
             "username": admin['username'],
+            "role": admin.get('role', 'front_desk'),
             "exp": datetime.now(timezone.utc) + timedelta(hours=24)
         },
         JWT_SECRET,
         algorithm=JWT_ALGORITHM
     )
     
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token, 
+        "token_type": "bearer",
+        "user": {
+            "id": admin['id'],
+            "username": admin['username'],
+            "role": admin.get('role', 'front_desk'),
+            "full_name": admin.get('full_name', admin['username'])
+        }
+    }
 
 @api_router.get("/admin/appointments")
 async def get_all_appointments(
@@ -874,10 +999,10 @@ async def get_all_appointments(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     search: Optional[str] = None,
+    nin: Optional[str] = None,
     authorization: Optional[str] = None
 ):
-    """Get all appointments (admin only)"""
-    # Verify token from header
+    """Get all appointments with enhanced search (admin only)"""
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         verify_token(token)
@@ -895,12 +1020,16 @@ async def get_all_appointments(
             query["appointment_date"]["$lte"] = date_to
         else:
             query["appointment_date"] = {"$lte": date_to}
+    if nin:
+        query["nin_or_application_number"] = {"$regex": nin, "$options": "i"}
     if search:
         query["$or"] = [
             {"surname": {"$regex": search, "$options": "i"}},
             {"first_name": {"$regex": search, "$options": "i"}},
             {"email": {"$regex": search, "$options": "i"}},
-            {"reference_number": {"$regex": search, "$options": "i"}}
+            {"phone": {"$regex": search, "$options": "i"}},
+            {"reference_number": {"$regex": search, "$options": "i"}},
+            {"nin_or_application_number": {"$regex": search, "$options": "i"}}
         ]
     
     appointments = await db.appointments.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
@@ -908,7 +1037,7 @@ async def get_all_appointments(
 
 @api_router.get("/admin/stats")
 async def get_appointment_stats(authorization: Optional[str] = None):
-    """Get appointment statistics (admin only)"""
+    """Get comprehensive appointment statistics (admin only)"""
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         verify_token(token)
@@ -920,6 +1049,9 @@ async def get_appointment_stats(authorization: Optional[str] = None):
     pending = len([a for a in appointments if a.get('status') == 'confirmed'])
     completed = len([a for a in appointments if a.get('status') == 'completed'])
     cancelled = len([a for a in appointments if a.get('status') == 'cancelled'])
+    rejected = len([a for a in appointments if a.get('status') == 'rejected'])
+    checked_in = len([a for a in appointments if a.get('checked_in', False)])
+    served = len([a for a in appointments if a.get('served', False)])
     
     # By service type
     by_service = {}
@@ -927,19 +1059,86 @@ async def get_appointment_stats(authorization: Optional[str] = None):
         service = a.get('service_type', 'unknown')
         by_service[service] = by_service.get(service, 0) + 1
     
-    # By date (last 30 days)
+    # By date (upcoming 30 days)
     by_date = {}
+    today = date.today()
     for a in appointments:
         apt_date = a.get('appointment_date', '')[:10]
         by_date[apt_date] = by_date.get(apt_date, 0) + 1
+    
+    # Today's bookings
+    today_str = today.isoformat()
+    today_bookings = len([a for a in appointments if a.get('appointment_date', '')[:10] == today_str])
+    
+    # Next 7 days
+    next_7_days = sum(1 for a in appointments 
+                     if today_str <= a.get('appointment_date', '')[:10] <= (today + timedelta(days=7)).isoformat())
+    
+    # Next 30 days
+    next_30_days = sum(1 for a in appointments 
+                      if today_str <= a.get('appointment_date', '')[:10] <= (today + timedelta(days=30)).isoformat())
+    
+    # Capacity utilization (slots per day: 6 slots * estimate ~20 per slot = 120)
+    max_daily_capacity = 120
     
     return {
         "total": total,
         "pending": pending,
         "completed": completed,
         "cancelled": cancelled,
+        "rejected": rejected,
+        "checked_in": checked_in,
+        "served": served,
         "by_service": by_service,
-        "by_date": by_date
+        "by_date": by_date,
+        "today_bookings": today_bookings,
+        "next_7_days": next_7_days,
+        "next_30_days": next_30_days,
+        "max_daily_capacity": max_daily_capacity
+    }
+
+@api_router.get("/admin/capacity")
+async def get_capacity_utilization(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    authorization: Optional[str] = None
+):
+    """Get capacity utilization for scheduling planning"""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        verify_token(token)
+    
+    today = date.today()
+    start_date = date_from or today.isoformat()
+    end_date = date_to or (today + timedelta(days=30)).isoformat()
+    
+    # Get appointments in date range
+    appointments = await db.appointments.find({
+        "appointment_date": {"$gte": start_date, "$lte": end_date},
+        "status": {"$ne": "cancelled"}
+    }, {"_id": 0}).to_list(None)
+    
+    # Group by date
+    capacity_by_date = {}
+    max_slots_per_day = 120  # Configurable
+    
+    current = datetime.strptime(start_date, "%Y-%m-%d").date()
+    end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    
+    while current <= end:
+        date_str = current.isoformat()
+        booked = len([a for a in appointments if a.get('appointment_date', '')[:10] == date_str])
+        capacity_by_date[date_str] = {
+            "date": date_str,
+            "booked": booked,
+            "available": max_slots_per_day - booked,
+            "utilization_percent": round((booked / max_slots_per_day) * 100, 1)
+        }
+        current += timedelta(days=1)
+    
+    return {
+        "capacity_by_date": capacity_by_date,
+        "max_slots_per_day": max_slots_per_day
     }
 
 @api_router.patch("/admin/appointments/{appointment_id}")
@@ -949,36 +1148,617 @@ async def update_appointment_status(
     authorization: Optional[str] = None
 ):
     """Update appointment status (admin only)"""
+    user_info = {"id": "system", "username": "system"}
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
-        verify_token(token)
+        user_info = verify_token(token)
     
-    if status not in ['confirmed', 'completed', 'cancelled']:
+    if status not in ['confirmed', 'completed', 'cancelled', 'rejected']:
         raise HTTPException(status_code=400, detail="Invalid status")
+    
+    # Get current appointment for audit
+    old_appointment = await db.appointments.find_one({"id": appointment_id}, {"_id": 0})
+    if not old_appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    old_status = old_appointment.get('status', 'unknown')
     
     result = await db.appointments.update_one(
         {"id": appointment_id},
         {"$set": {"status": status}}
     )
     
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Appointment not found")
+    # Log audit
+    await log_audit(
+        user_info.get('sub', 'system'),
+        user_info.get('username', 'system'),
+        "status_update",
+        "appointment",
+        appointment_id,
+        {"from_status": old_status, "to_status": status}
+    )
     
     return {"message": "Status updated successfully"}
+
+@api_router.post("/admin/appointments/{appointment_id}/reject")
+async def reject_card_pickup(
+    appointment_id: str,
+    reject_data: RejectRequest,
+    authorization: Optional[str] = None
+):
+    """Reject a Card Pickup appointment with reason (card not ready)"""
+    user_info = {"sub": "system", "username": "system"}
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_info = verify_token(token)
+    
+    # Get appointment
+    appointment = await db.appointments.find_one({"id": appointment_id}, {"_id": 0})
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    if appointment.get('service_type') != 'card_pickup':
+        raise HTTPException(status_code=400, detail="Rejection with reason is only available for Card Pick-up service")
+    
+    if appointment.get('status') in ['cancelled', 'rejected']:
+        raise HTTPException(status_code=400, detail="Appointment is already cancelled or rejected")
+    
+    # Update appointment
+    rejection_time = datetime.now(timezone.utc).isoformat()
+    await db.appointments.update_one(
+        {"id": appointment_id},
+        {"$set": {
+            "status": "rejected",
+            "rejection_reason": reject_data.reason,
+            "rejected_at": rejection_time,
+            "rejected_by": user_info.get('username', 'system')
+        }}
+    )
+    
+    # Send rejection email
+    await send_rejection_email(appointment, reject_data.reason)
+    
+    # Log audit
+    await log_audit(
+        user_info.get('sub', 'system'),
+        user_info.get('username', 'system'),
+        "appointment_rejected",
+        "appointment",
+        appointment_id,
+        {"reason": reject_data.reason, "service_type": appointment.get('service_type')}
+    )
+    
+    return {"message": "Appointment rejected and applicant notified"}
+
+@api_router.post("/admin/appointments/{appointment_id}/check-in")
+async def check_in_appointment(
+    appointment_id: str,
+    authorization: Optional[str] = None
+):
+    """Mark an appointment as checked in (front desk)"""
+    user_info = {"sub": "system", "username": "system"}
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_info = verify_token(token)
+    
+    appointment = await db.appointments.find_one({"id": appointment_id}, {"_id": 0})
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    if appointment.get('status') != 'confirmed':
+        raise HTTPException(status_code=400, detail="Can only check in confirmed appointments")
+    
+    check_in_time = datetime.now(timezone.utc).isoformat()
+    await db.appointments.update_one(
+        {"id": appointment_id},
+        {"$set": {
+            "checked_in": True,
+            "checked_in_at": check_in_time,
+            "checked_in_by": user_info.get('username', 'system')
+        }}
+    )
+    
+    await log_audit(
+        user_info.get('sub', 'system'),
+        user_info.get('username', 'system'),
+        "check_in",
+        "appointment",
+        appointment_id
+    )
+    
+    return {"message": "Appointment checked in", "checked_in_at": check_in_time}
+
+@api_router.post("/admin/appointments/{appointment_id}/mark-served")
+async def mark_appointment_served(
+    appointment_id: str,
+    authorization: Optional[str] = None
+):
+    """Mark an appointment as served/completed (front desk)"""
+    user_info = {"sub": "system", "username": "system"}
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_info = verify_token(token)
+    
+    appointment = await db.appointments.find_one({"id": appointment_id}, {"_id": 0})
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    served_time = datetime.now(timezone.utc).isoformat()
+    await db.appointments.update_one(
+        {"id": appointment_id},
+        {"$set": {
+            "served": True,
+            "served_at": served_time,
+            "served_by": user_info.get('username', 'system'),
+            "status": "completed"
+        }}
+    )
+    
+    await log_audit(
+        user_info.get('sub', 'system'),
+        user_info.get('username', 'system'),
+        "mark_served",
+        "appointment",
+        appointment_id
+    )
+    
+    return {"message": "Appointment marked as served", "served_at": served_time}
+
+@api_router.post("/admin/bulk-reschedule")
+async def bulk_reschedule_appointments(
+    bulk_data: BulkRescheduleRequest,
+    authorization: Optional[str] = None
+):
+    """Bulk reschedule appointments by date or service type (office closure, etc.)"""
+    user_info = {"sub": "system", "username": "system"}
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_info = verify_token(token)
+    
+    # Build query for appointments to reschedule
+    query = {"status": "confirmed"}
+    if bulk_data.original_date:
+        query["appointment_date"] = bulk_data.original_date.isoformat()
+    if bulk_data.service_type:
+        query["service_type"] = bulk_data.service_type
+    
+    if not bulk_data.original_date and not bulk_data.service_type:
+        raise HTTPException(status_code=400, detail="Must specify either original_date or service_type")
+    
+    # Get affected appointments
+    affected = await db.appointments.find(query, {"_id": 0}).to_list(None)
+    
+    if not affected:
+        return {"message": "No appointments found to reschedule", "count": 0}
+    
+    # Update all affected appointments
+    new_date_str = bulk_data.new_date.isoformat()
+    update_result = await db.appointments.update_many(
+        query,
+        {"$set": {
+            "appointment_date": new_date_str,
+            "appointment_time": bulk_data.new_time
+        }}
+    )
+    
+    # Send email notifications to all affected
+    for apt in affected:
+        await send_reschedule_notification_email(apt, new_date_str, bulk_data.new_time, bulk_data.reason)
+    
+    # Log audit
+    await log_audit(
+        user_info.get('sub', 'system'),
+        user_info.get('username', 'system'),
+        "bulk_reschedule",
+        "appointments",
+        None,
+        {
+            "original_date": bulk_data.original_date.isoformat() if bulk_data.original_date else None,
+            "service_type": bulk_data.service_type,
+            "new_date": new_date_str,
+            "new_time": bulk_data.new_time,
+            "reason": bulk_data.reason,
+            "affected_count": len(affected)
+        }
+    )
+    
+    return {
+        "message": f"Successfully rescheduled {len(affected)} appointments",
+        "count": len(affected),
+        "new_date": new_date_str,
+        "new_time": bulk_data.new_time
+    }
 
 @api_router.delete("/admin/appointments/{appointment_id}")
 async def delete_appointment(appointment_id: str, authorization: Optional[str] = None):
     """Delete an appointment (admin only)"""
+    user_info = {"sub": "system", "username": "system"}
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
-        verify_token(token)
+        user_info = verify_token(token)
+    
+    # Get appointment for audit before deletion
+    appointment = await db.appointments.find_one({"id": appointment_id}, {"_id": 0})
     
     result = await db.appointments.delete_one({"id": appointment_id})
     
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Appointment not found")
     
+    # Log audit
+    await log_audit(
+        user_info.get('sub', 'system'),
+        user_info.get('username', 'system'),
+        "delete",
+        "appointment",
+        appointment_id,
+        {"deleted_appointment": appointment}
+    )
+    
     return {"message": "Appointment deleted successfully"}
+
+# Audit Log Routes
+@api_router.get("/admin/audit-logs")
+async def get_audit_logs(
+    action: Optional[str] = None,
+    user_id: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    limit: int = 100,
+    authorization: Optional[str] = None
+):
+    """Get audit logs (super admin only)"""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_info = verify_token(token)
+        if user_info.get('role') not in ['super_admin', 'operations_admin']:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+    
+    query = {}
+    if action:
+        query["action"] = action
+    if user_id:
+        query["user_id"] = user_id
+    if resource_type:
+        query["resource_type"] = resource_type
+    if date_from:
+        query["timestamp"] = {"$gte": date_from}
+    if date_to:
+        if "timestamp" in query:
+            query["timestamp"]["$lte"] = date_to
+        else:
+            query["timestamp"] = {"$lte": date_to}
+    
+    logs = await db.audit_logs.find(query, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(None)
+    return logs
+
+@api_router.get("/admin/audit-logs/export")
+async def export_audit_logs(
+    format: str = "csv",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    authorization: Optional[str] = None
+):
+    """Export audit logs as CSV"""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_info = verify_token(token)
+        if user_info.get('role') != 'super_admin':
+            raise HTTPException(status_code=403, detail="Only super admin can export audit logs")
+    
+    query = {}
+    if date_from:
+        query["timestamp"] = {"$gte": date_from}
+    if date_to:
+        if "timestamp" in query:
+            query["timestamp"]["$lte"] = date_to
+        else:
+            query["timestamp"] = {"$lte": date_to}
+    
+    logs = await db.audit_logs.find(query, {"_id": 0}).sort("timestamp", -1).to_list(None)
+    
+    # Generate CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Timestamp", "Username", "Action", "Resource Type", "Resource ID", "Details"])
+    
+    for log in logs:
+        writer.writerow([
+            log.get('timestamp', ''),
+            log.get('username', ''),
+            log.get('action', ''),
+            log.get('resource_type', ''),
+            log.get('resource_id', ''),
+            str(log.get('details', {}))
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=audit_logs_{datetime.now().strftime('%Y%m%d')}.csv"}
+    )
+
+# User Management Routes (Super Admin)
+@api_router.get("/admin/users")
+async def get_admin_users(authorization: Optional[str] = None):
+    """Get all admin users (super admin only)"""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_info = verify_token(token)
+        if user_info.get('role') != 'super_admin':
+            raise HTTPException(status_code=403, detail="Only super admin can manage users")
+    
+    users = await db.admin_users.find({}, {"_id": 0, "password_hash": 0}).to_list(None)
+    return users
+
+@api_router.post("/admin/users")
+async def create_admin_user(user_data: AdminUserCreate, authorization: Optional[str] = None):
+    """Create a new admin user (super admin only)"""
+    user_info = {"sub": "system", "username": "system"}
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_info = verify_token(token)
+        if user_info.get('role') != 'super_admin':
+            raise HTTPException(status_code=403, detail="Only super admin can create users")
+    
+    # Check if username exists
+    existing = await db.admin_users.find_one({"username": user_data.username})
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    
+    password_hash = bcrypt.hashpw(user_data.password.encode(), bcrypt.gensalt()).decode()
+    
+    new_user = {
+        "id": str(uuid.uuid4()),
+        "username": user_data.username,
+        "password_hash": password_hash,
+        "email": user_data.email,
+        "full_name": user_data.full_name,
+        "role": user_data.role.value,
+        "active": True,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.admin_users.insert_one(new_user)
+    
+    await log_audit(
+        user_info.get('sub', 'system'),
+        user_info.get('username', 'system'),
+        "create_user",
+        "admin_user",
+        new_user['id'],
+        {"username": user_data.username, "role": user_data.role.value}
+    )
+    
+    return {"message": "User created successfully", "user_id": new_user['id']}
+
+# Reports Routes
+@api_router.get("/admin/reports/daily-worklist")
+async def get_daily_worklist(
+    report_date: Optional[str] = None,
+    authorization: Optional[str] = None
+):
+    """Get daily worklist for a session/day sorted by service type"""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        verify_token(token)
+    
+    target_date = report_date or date.today().isoformat()
+    
+    appointments = await db.appointments.find({
+        "appointment_date": target_date,
+        "status": {"$in": ["confirmed", "completed"]}
+    }, {"_id": 0}).sort([("service_type", 1), ("appointment_time", 1)]).to_list(None)
+    
+    # Group by service type
+    worklist = {}
+    for apt in appointments:
+        svc = apt.get('service_type', 'unknown')
+        if svc not in worklist:
+            worklist[svc] = []
+        worklist[svc].append(apt)
+    
+    return {
+        "date": target_date,
+        "total_appointments": len(appointments),
+        "worklist_by_service": worklist
+    }
+
+@api_router.get("/admin/reports/daily-worklist/download")
+async def download_daily_worklist(
+    report_date: Optional[str] = None,
+    format: str = "csv",
+    authorization: Optional[str] = None
+):
+    """Download daily worklist as CSV"""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        verify_token(token)
+    
+    target_date = report_date or date.today().isoformat()
+    
+    appointments = await db.appointments.find({
+        "appointment_date": target_date,
+        "status": {"$in": ["confirmed", "completed"]}
+    }, {"_id": 0}).sort([("service_type", 1), ("appointment_time", 1)]).to_list(None)
+    
+    # Generate CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["#", "Reference", "Name", "Service Type", "Time", "Phone", "Email", "NIN/App No", "Status", "Checked In"])
+    
+    for i, apt in enumerate(appointments, 1):
+        writer.writerow([
+            i,
+            apt.get('reference_number', ''),
+            f"{apt.get('first_name', '')} {apt.get('surname', '')}",
+            apt.get('service_type', ''),
+            apt.get('appointment_time', ''),
+            apt.get('phone', ''),
+            apt.get('email', ''),
+            apt.get('nin_or_application_number', ''),
+            apt.get('status', ''),
+            'Yes' if apt.get('checked_in', False) else 'No'
+        ])
+    
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=worklist_{target_date}.csv"}
+    )
+
+@api_router.get("/admin/reports/cancellations")
+async def get_cancellation_report(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    authorization: Optional[str] = None
+):
+    """Get cancellation and rejection report"""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        verify_token(token)
+    
+    query = {"status": {"$in": ["cancelled", "rejected"]}}
+    if date_from:
+        query["appointment_date"] = {"$gte": date_from}
+    if date_to:
+        if "appointment_date" in query:
+            query["appointment_date"]["$lte"] = date_to
+        else:
+            query["appointment_date"] = {"$lte": date_to}
+    
+    appointments = await db.appointments.find(query, {"_id": 0}).sort("created_at", -1).to_list(None)
+    
+    cancelled = [a for a in appointments if a.get('status') == 'cancelled']
+    rejected = [a for a in appointments if a.get('status') == 'rejected']
+    
+    return {
+        "total_cancelled": len(cancelled),
+        "total_rejected": len(rejected),
+        "cancelled": cancelled,
+        "rejected": rejected
+    }
+
+# Email helper for rejection
+async def send_rejection_email(appointment: dict, reason: str) -> bool:
+    """Send rejection email for Card Pickup"""
+    if not SENDGRID_API_KEY:
+        logger.warning("SendGrid API key not configured")
+        return False
+    
+    try:
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background-color: #1A1A1A; color: white; padding: 20px; text-align: center;">
+                <h1 style="margin: 0;">Uganda High Commission</h1>
+                <p style="margin: 5px 0 0 0;">London</p>
+            </div>
+            
+            <div style="padding: 30px 20px; background-color: #F3F4F6;">
+                <h2 style="color: #D90000;">Appointment Update - Card Pick-up</h2>
+                
+                <p>Dear {appointment.get('first_name', '')} {appointment.get('surname', '')},</p>
+                
+                <p>We regret to inform you that your Card Pick-up appointment (Reference: <strong>{appointment.get('reference_number', '')}</strong>) 
+                has been cancelled due to the following reason:</p>
+                
+                <div style="background-color: #FEE2E2; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #D90000;">
+                    <p style="margin: 0; color: #991B1B;"><strong>{reason}</strong></p>
+                </div>
+                
+                <p>Your National ID card is not yet ready for collection. Please schedule a new appointment 
+                <strong>after one month</strong> from today to allow sufficient time for your card to be processed.</p>
+                
+                <p>We apologize for any inconvenience this may cause.</p>
+                
+                <p>Best regards,<br/>Uganda High Commission, London</p>
+            </div>
+            
+            <div style="background-color: #1A1A1A; color: #9CA3AF; padding: 15px; text-align: center; font-size: 12px;">
+                <p style="margin: 0;">For inquiries, contact: info@ugandahighcommission.co.uk</p>
+                <p style="margin: 5px 0 0 0;">NIRA Toll-free: 0800211700</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        message = Mail(
+            from_email=SENDER_EMAIL,
+            to_emails=appointment.get('email'),
+            subject=f"Appointment Cancelled - {appointment.get('reference_number', '')}",
+            html_content=html_content
+        )
+        
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+        return response.status_code == 202
+    except Exception as e:
+        logger.error(f"Failed to send rejection email: {str(e)}")
+        return False
+
+async def send_reschedule_notification_email(appointment: dict, new_date: str, new_time: str, reason: str) -> bool:
+    """Send bulk reschedule notification email"""
+    if not SENDGRID_API_KEY:
+        logger.warning("SendGrid API key not configured")
+        return False
+    
+    try:
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background-color: #1A1A1A; color: white; padding: 20px; text-align: center;">
+                <h1 style="margin: 0;">Uganda High Commission</h1>
+                <p style="margin: 5px 0 0 0;">London</p>
+            </div>
+            
+            <div style="padding: 30px 20px; background-color: #F3F4F6;">
+                <h2 style="color: #D97706;">Appointment Rescheduled</h2>
+                
+                <p>Dear {appointment.get('first_name', '')} {appointment.get('surname', '')},</p>
+                
+                <p>Your appointment (Reference: <strong>{appointment.get('reference_number', '')}</strong>) has been 
+                rescheduled due to the following reason:</p>
+                
+                <div style="background-color: #FEF3C7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #D97706;">
+                    <p style="margin: 0; color: #92400E;"><strong>{reason}</strong></p>
+                </div>
+                
+                <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="color: #059669; margin-top: 0;">New Appointment Details</h3>
+                    <p><strong>New Date:</strong> {new_date}</p>
+                    <p><strong>Time Window:</strong> 10:00 AM – 1:00 PM</p>
+                </div>
+                
+                <p>We apologize for any inconvenience. If this new date does not work for you, please visit 
+                our booking system to reschedule.</p>
+                
+                <p>Best regards,<br/>Uganda High Commission, London</p>
+            </div>
+            
+            <div style="background-color: #1A1A1A; color: #9CA3AF; padding: 15px; text-align: center; font-size: 12px;">
+                <p style="margin: 0;">For inquiries, contact: info@ugandahighcommission.co.uk</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        message = Mail(
+            from_email=SENDER_EMAIL,
+            to_emails=appointment.get('email'),
+            subject=f"Appointment Rescheduled - {appointment.get('reference_number', '')}",
+            html_content=html_content
+        )
+        
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+        return response.status_code == 202
+    except Exception as e:
+        logger.error(f"Failed to send reschedule notification email: {str(e)}")
+        return False
 
 # Initialize default admin user on startup
 @app.on_event("startup")
@@ -991,10 +1771,26 @@ async def create_default_admin():
             "id": str(uuid.uuid4()),
             "username": "admin",
             "password_hash": password_hash,
+            "email": "admin@ugandahighcommission.co.uk",
+            "full_name": "System Administrator",
+            "role": "super_admin",
+            "active": True,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.admin_users.insert_one(admin)
-        logger.info("Default admin user created (username: admin, password: admin123)")
+        logger.info("Default admin user created (username: admin, password: admin123, role: super_admin)")
+    else:
+        # Update existing admin to have super_admin role if missing
+        if not existing_admin.get('role'):
+            await db.admin_users.update_one(
+                {"username": "admin"},
+                {"$set": {
+                    "role": "super_admin",
+                    "full_name": existing_admin.get("full_name", "System Administrator"),
+                    "email": existing_admin.get("email", "admin@ugandahighcommission.co.uk")
+                }}
+            )
+            logger.info("Default admin user updated with super_admin role")
 
 # Include the router in the main app
 app.include_router(api_router)

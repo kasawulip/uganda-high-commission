@@ -36,6 +36,10 @@ export default function AdminLogin() {
     try {
       const response = await axios.post(`${API}/admin/login`, credentials);
       localStorage.setItem("adminToken", response.data.access_token);
+      // Store user info for role-based access
+      if (response.data.user) {
+        localStorage.setItem("adminUser", JSON.stringify(response.data.user));
+      }
       toast.success("Login successful!");
       navigate("/admin/dashboard");
     } catch (error) {

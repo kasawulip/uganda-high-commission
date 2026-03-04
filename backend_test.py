@@ -8,7 +8,7 @@ from typing import Dict, Any
 import uuid
 
 class NIDAppointmentTester:
-    def __init__(self, base_url="https://nid-appointment-book.preview.emergentagent.com/api"):
+    def __init__(self, base_url="https://nira-high-commission.preview.emergentagent.com/api"):
         self.base_url = base_url
         self.token = None
         self.tests_run = 0
