@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { 
   ChevronLeft, Calendar as CalendarIcon, XCircle, Loader2, 
-  AlertCircle, CheckCircle, MapPin, Phone, Mail, FileText, Home
+  AlertCircle, CheckCircle, MapPin, Phone, Mail, FileText, Home,
+  Download, Ban, Clock
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -30,6 +31,15 @@ const serviceNames = {
   card_pickup: "Card Pick-up"
 };
 
+const TIME_SLOTS = [
+  { value: "10:00", label: "10:00 AM" },
+  { value: "10:30", label: "10:30 AM" },
+  { value: "11:00", label: "11:00 AM" },
+  { value: "11:30", label: "11:30 AM" },
+  { value: "12:00", label: "12:00 PM" },
+  { value: "12:30", label: "12:30 PM" }
+];
+
 export default function ManageAppointment() {
   const { appointmentId } = useParams();
   const navigate = useNavigate();
@@ -37,10 +47,12 @@ export default function ManageAppointment() {
   const [appointment, setAppointment] = useState(null);
   const [error, setError] = useState(null);
   const [disabledDates, setDisabledDates] = useState([]);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   
   // Reschedule state
   const [showReschedule, setShowReschedule] = useState(false);
   const [newDate, setNewDate] = useState(null);
+  const [newTime, setNewTime] = useState("");
   const [rescheduling, setRescheduling] = useState(false);
   
   // Cancel state
@@ -105,11 +117,13 @@ export default function ManageAppointment() {
     try {
       const formattedDate = format(newDate, "yyyy-MM-dd");
       await axios.patch(`${API}/appointments/${appointment.id}/reschedule`, {
-        new_date: formattedDate
+        new_date: formattedDate,
+        new_time: newTime || appointment.appointment_time || "10:00"
       });
       toast.success("Appointment rescheduled successfully!");
       setShowReschedule(false);
       setNewDate(null);
+      setNewTime("");
       fetchAppointment(); // Refresh data
     } catch (err) {
       console.error("Failed to reschedule:", err);
@@ -133,6 +147,46 @@ export default function ManageAppointment() {
       toast.error(message);
     } finally {
       setCancelling(false);
+    }
+  };
+
+  // Download PDF using blob to avoid pop-up blockers
+  const handleDownloadPdf = async () => {
+    if (!appointment?.id) return;
+    
+    setDownloadingPdf(true);
+    try {
+      const response = await axios.get(`${API}/appointments/${appointment.id}/pdf`, {
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+      
+      // Create blob URL
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `appointment_${appointment.reference_number}.pdf`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      toast.success("PDF downloaded successfully!");
+    } catch (err) {
+      console.error("Failed to download PDF:", err);
+      toast.error("Failed to download PDF. Please try again.");
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -168,7 +222,9 @@ export default function ManageAppointment() {
 
   const isCancelled = appointment?.status === "cancelled";
   const isCompleted = appointment?.status === "completed";
-  const canModify = !isCancelled && !isCompleted;
+  const isRejected = appointment?.status === "rejected";
+  const canModify = !isCancelled && !isCompleted && !isRejected;
+  const canDownloadPdf = appointment?.status === "confirmed";
 
   return (
     <div className="min-h-screen bg-[#F3F4F6] py-6 md:py-8">
@@ -189,7 +245,32 @@ export default function ManageAppointment() {
           </p>
         </div>
 
-        {/* Status Alert */}
+        {/* Rejection Alert - Prominent notification for rejected appointments */}
+        {isRejected && (
+          <Alert className="mb-6 border-orange-500 bg-orange-50" data-testid="rejection-alert">
+            <Ban className="h-5 w-5 text-orange-600" />
+            <AlertTitle className="text-orange-800 font-semibold">Appointment Rejected</AlertTitle>
+            <AlertDescription className="text-orange-700">
+              <p className="mb-2">Your appointment has been rejected by the Uganda High Commission.</p>
+              {appointment.rejection_reason && (
+                <div className="bg-white p-3 rounded-lg border border-orange-200 mt-2">
+                  <p className="font-medium text-orange-800 mb-1">Reason:</p>
+                  <p className="text-orange-900">{appointment.rejection_reason}</p>
+                </div>
+              )}
+              {appointment.rejected_at && (
+                <p className="text-sm mt-2 text-orange-600">
+                  Rejected on: {format(parseISO(appointment.rejected_at), "MMMM do, yyyy 'at' h:mm a")}
+                </p>
+              )}
+              <p className="mt-3 text-orange-800 font-medium">
+                Please book a new appointment with the correct information or contact the High Commission for assistance.
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Status Alert - Cancelled */}
         {isCancelled && (
           <Alert className="mb-6 border-red-500 bg-red-50">
             <XCircle className="h-5 w-5 text-red-500" />
@@ -200,6 +281,7 @@ export default function ManageAppointment() {
           </Alert>
         )}
 
+        {/* Status Alert - Completed */}
         {isCompleted && (
           <Alert className="mb-6 border-green-500 bg-green-50">
             <CheckCircle className="h-5 w-5 text-green-500" />
@@ -232,6 +314,7 @@ export default function ManageAppointment() {
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                     isCancelled ? 'bg-red-100 text-red-800' :
                     isCompleted ? 'bg-green-100 text-green-800' :
+                    isRejected ? 'bg-orange-100 text-orange-800' :
                     'bg-blue-100 text-blue-800'
                   }`}>
                     {appointment.status.toUpperCase()}
@@ -276,19 +359,76 @@ export default function ManageAppointment() {
               </div>
 
               <div className="border-t pt-4">
-                <div className="flex items-start gap-2">
-                  <CalendarIcon className="w-4 h-4 text-[#D90000] mt-1" />
-                  <div>
-                    <p className="text-sm text-[#4B5563]">Appointment Date</p>
-                    <p className="font-semibold text-[#1A1A1A] text-lg">
-                      {format(parseISO(appointment.appointment_date), "EEEE, MMMM do, yyyy")}
-                    </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-start gap-2">
+                    <CalendarIcon className="w-4 h-4 text-[#D90000] mt-1" />
+                    <div>
+                      <p className="text-sm text-[#4B5563]">Appointment Date</p>
+                      <p className="font-semibold text-[#1A1A1A] text-lg">
+                        {format(parseISO(appointment.appointment_date), "EEEE, MMMM do, yyyy")}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Clock className="w-4 h-4 text-[#D90000] mt-1" />
+                    <div>
+                      <p className="text-sm text-[#4B5563]">Time Window</p>
+                      <p className="font-semibold text-[#1A1A1A]">
+                        {appointment.time_window || "10:00 AM – 1:00 PM"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {appointment.nin_or_application_number && (
+                <div className="border-t pt-4">
+                  <p className="text-sm text-[#4B5563]">NIN / Application Number</p>
+                  <p className="font-mono font-medium text-[#1A1A1A]">
+                    {appointment.nin_or_application_number}
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
+
+        {/* Download PDF Button - For confirmed appointments */}
+        {canDownloadPdf && (
+          <Card className="shadow-lg border-0 mb-6 bg-green-50 border-green-200">
+            <CardContent className="p-6">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <FileText className="w-6 h-6 text-green-600 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-green-800">Confirmation Letter</h3>
+                    <p className="text-sm text-green-700">
+                      Download your appointment confirmation as a PDF document
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleDownloadPdf}
+                  disabled={downloadingPdf}
+                  className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+                  data-testid="download-pdf-btn"
+                >
+                  {downloadingPdf ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download PDF
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Venue Card */}
         <Card className="shadow-lg border-0 mb-6 bg-[#FCDC04]">
@@ -342,18 +482,18 @@ export default function ManageAppointment() {
         )}
 
         {/* Reschedule Dialog */}
-        {showReschedule && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <CardTitle>Reschedule Appointment</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-[#4B5563] mb-4">
-                  Select a new date for your {serviceNames[appointment.service_type]} appointment.
-                  Appointments are available on Tuesday, Wednesday, and Friday only.
-                </p>
-                <div className="flex justify-center mb-4">
+        <Dialog open={showReschedule} onOpenChange={setShowReschedule}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Reschedule Appointment</DialogTitle>
+              <DialogDescription>
+                Select a new date and time for your appointment
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium mb-2">Select New Date</p>
+                <div className="flex justify-center">
                   <Calendar
                     mode="single"
                     selected={newDate}
@@ -363,47 +503,66 @@ export default function ManageAppointment() {
                       today.setHours(0, 0, 0, 0);
                       return date < today || isDateDisabled(date);
                     }}
-                    className="rounded-md border shadow-sm"
+                    className="rounded-md border"
                   />
                 </div>
-                {newDate && (
-                  <p className="text-center text-sm text-green-600 mb-4">
-                    New date: {format(newDate, "EEEE, MMMM do, yyyy")}
-                  </p>
-                )}
-                <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowReschedule(false);
-                      setNewDate(null);
-                    }}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleReschedule}
-                    disabled={!newDate || rescheduling}
-                    className="flex-1 btn-primary"
-                    data-testid="confirm-reschedule-btn"
-                  >
-                    {rescheduling ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Rescheduling...
-                      </>
-                    ) : (
-                      "Confirm Reschedule"
-                    )}
-                  </Button>
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-2">Select New Time</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {TIME_SLOTS.map((slot) => (
+                    <button
+                      key={slot.value}
+                      type="button"
+                      onClick={() => setNewTime(slot.value)}
+                      className={`p-2 text-sm rounded-md border transition-colors ${
+                        newTime === slot.value
+                          ? 'bg-[#D90000] text-white border-[#D90000]'
+                          : 'bg-white text-[#1A1A1A] border-gray-300 hover:border-[#D90000]'
+                      }`}
+                    >
+                      {slot.label}
+                    </button>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+              </div>
+              {newDate && (
+                <Alert className="bg-blue-50 border-blue-200">
+                  <CalendarIcon className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800">
+                    New appointment: {format(newDate, "EEEE, MMMM do, yyyy")}
+                    {newTime && ` at ${TIME_SLOTS.find(s => s.value === newTime)?.label}`}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => {
+                setShowReschedule(false);
+                setNewDate(null);
+                setNewTime("");
+              }}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleReschedule} 
+                disabled={!newDate || rescheduling}
+                className="btn-primary"
+              >
+                {rescheduling ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Rescheduling...
+                  </>
+                ) : (
+                  "Confirm Reschedule"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-        {/* Cancel Confirmation Dialog */}
+        {/* Cancel Dialog */}
         <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
           <DialogContent>
             <DialogHeader>
@@ -413,11 +572,14 @@ export default function ManageAppointment() {
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <p><strong>Reference:</strong> {appointment?.reference_number}</p>
-              <p><strong>Service:</strong> {serviceNames[appointment?.service_type]}</p>
-              <p><strong>Date:</strong> {appointment?.appointment_date && format(parseISO(appointment.appointment_date), "MMMM do, yyyy")}</p>
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Once cancelled, you will need to book a new appointment.
+                </AlertDescription>
+              </Alert>
             </div>
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-0">
               <Button variant="outline" onClick={() => setShowCancelDialog(false)}>
                 Keep Appointment
               </Button>
@@ -425,7 +587,6 @@ export default function ManageAppointment() {
                 variant="destructive" 
                 onClick={handleCancel}
                 disabled={cancelling}
-                data-testid="confirm-cancel-btn"
               >
                 {cancelling ? (
                   <>

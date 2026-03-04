@@ -831,10 +831,11 @@ async def create_appointment(appointment_data: AppointmentCreate):
             # Generate PDF
             pdf_bytes = generate_pdf(doc)
             
-            # Send confirmation email (don't fail if email fails)
-            email_sent = await send_confirmation_email(doc, pdf_bytes)
-            if not email_sent:
-                logger.warning(f"Failed to send confirmation email for appointment {appointment.reference_number}")
+            # Email notifications are currently disabled
+            # TODO: Re-enable when SendGrid sender is verified
+            # email_sent = await send_confirmation_email(doc, pdf_bytes)
+            # if not email_sent:
+            #     logger.warning(f"Failed to send confirmation email for appointment {appointment.reference_number}")
             
             return appointment
             
@@ -1291,8 +1292,9 @@ async def reject_card_pickup(
         }}
     )
     
-    # Send rejection email
-    await send_rejection_email(appointment, reject_data.reason)
+    # Email notifications are currently disabled
+    # TODO: Re-enable when SendGrid sender is verified
+    # await send_rejection_email(appointment, reject_data.reason)
     
     # Log audit
     await log_audit(
@@ -1417,9 +1419,10 @@ async def bulk_reschedule_appointments(
         }}
     )
     
-    # Send email notifications to all affected
-    for apt in affected:
-        await send_reschedule_notification_email(apt, new_date_str, bulk_data.new_time, bulk_data.reason)
+    # Email notifications are currently disabled
+    # TODO: Re-enable when SendGrid sender is verified
+    # for apt in affected:
+    #     await send_reschedule_notification_email(apt, new_date_str, bulk_data.new_time, bulk_data.reason)
     
     # Log audit
     await log_audit(

@@ -48,7 +48,49 @@ export default function ConfirmationPage() {
     }
   };
 
-  const generatePDF = () => {
+  // Primary: Server-side PDF download (more reliable, avoids pop-up blockers)
+  const downloadServerPDF = async () => {
+    if (!appointment) return;
+    
+    setDownloading(true);
+    try {
+      const response = await axios.get(`${API}/appointments/${appointment.id}/pdf`, {
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+      
+      // Create blob URL
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `appointment_${appointment.reference_number}.pdf`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      toast.success("PDF downloaded successfully!");
+    } catch (err) {
+      console.error("Server PDF download failed, trying client-side:", err);
+      // Fallback to client-side generation
+      generatePDFClientSide();
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // Fallback: Client-side PDF generation
+  const generatePDFClientSide = () => {
     if (!appointment) return;
 
     setDownloading(true);
@@ -377,7 +419,7 @@ export default function ConfirmationPage() {
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
           <Button 
-            onClick={generatePDF}
+            onClick={downloadServerPDF}
             disabled={downloading}
             className="btn-primary download-btn"
             data-testid="download-pdf-btn"
