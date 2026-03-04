@@ -491,20 +491,70 @@ def generate_pdf(appointment: dict) -> bytes:
     story.append(Paragraph(venue_text, normal_style))
     story.append(Spacer(1, 20))
     
-    # Important Notice
-    story.append(Paragraph("IMPORTANT NOTICE", header_style))
-    notice_text = """
-    You are advised to visit the NIRA website and complete the pre-registration process 
-    for this service as this shall help you to be served faster when you physically visit 
-    the High Commission. Upon successful pre-registration, you will receive a pre-registration 
-    ID that you shall as well come along with during the physical visit to the High Commission.
-    <br/><br/>
+    # What to bring
+    story.append(Paragraph("WHAT TO BRING", header_style))
+    bring_text = """
     Please bring this confirmation letter along with all required documents on your appointment date.
     <br/><br/>
-    For any inquiries, please contact the High Commission or call the NIRA toll-free line: 0800211700
+    For any inquiries, please contact the High Commission or call the NIRA toll-free line: <b>0800 211 700</b>
     """
-    story.append(Paragraph(notice_text, normal_style))
+    story.append(Paragraph(bring_text, normal_style))
     story.append(Spacer(1, 30))
+    
+    # Footnote - Pre-registration Notice (styled as a proper footnote)
+    footnote_box_style = ParagraphStyle(
+        'FootnoteBox',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#4B5563'),
+        borderColor=colors.HexColor('#D90000'),
+        borderWidth=1,
+        borderPadding=10,
+        backColor=colors.HexColor('#FEF2F2'),
+        leftIndent=0,
+        rightIndent=0,
+    )
+    
+    footnote_header_style = ParagraphStyle(
+        'FootnoteHeader',
+        parent=styles['Normal'],
+        fontSize=10,
+        fontName='Helvetica-Bold',
+        textColor=colors.HexColor('#D90000'),
+        spaceAfter=6,
+    )
+    
+    footnote_link_style = ParagraphStyle(
+        'FootnoteLink',
+        parent=styles['Normal'],
+        fontSize=10,
+        fontName='Helvetica-Bold',
+        textColor=colors.HexColor('#D90000'),
+        alignment=TA_CENTER,
+        spaceBefore=8,
+    )
+    
+    # Create a bordered box for the footnote
+    story.append(Paragraph("* PRE-REGISTRATION NOTICE", footnote_header_style))
+    
+    footnote_text = """
+    You are advised to visit the NIRA website and complete the pre-registration process for this service. 
+    This will help you to be served faster when you physically visit the High Commission. Upon successful 
+    pre-registration, you will receive a pre-registration ID that you should bring along during your visit.
+    """
+    story.append(Paragraph(footnote_text, ParagraphStyle(
+        'FootnoteText',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#4B5563'),
+        leftIndent=10,
+    )))
+    
+    # NIRA Pre-registration link - prominently displayed
+    nira_link = '<link href="https://servicebooking.nira.go.ug" color="#D90000"><b>https://servicebooking.nira.go.ug</b></link>'
+    story.append(Spacer(1, 8))
+    story.append(Paragraph(f"NIRA Pre-Registration Portal: {nira_link}", footnote_link_style))
+    story.append(Spacer(1, 20))
     
     # Footer
     footer_style = ParagraphStyle(

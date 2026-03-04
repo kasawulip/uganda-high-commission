@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   CheckCircle, Download, Home, Loader2, Calendar, 
-  MapPin, Phone, Mail, FileText, ExternalLink, AlertCircle, Clock 
+  MapPin, Phone, Mail, FileText, AlertCircle, Clock 
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -395,26 +395,6 @@ export default function ConfirmationPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Important Notice */}
-        <Alert className="mb-6 border-[#D90000] bg-red-50">
-          <AlertCircle className="h-5 w-5 text-[#D90000]" />
-          <AlertTitle className="text-[#D90000] font-semibold">Important Notice</AlertTitle>
-          <AlertDescription className="text-[#4B5563] mt-2">
-            You are advised to visit the NIRA website and complete the pre-registration process for this service 
-            as this shall help you to be served faster when you physically visit the High Commission. Upon successful 
-            pre-registration, you will receive a pre-registration ID that you shall as well come along with during 
-            the physical visit to the High Commission.
-          </AlertDescription>
-          <a 
-            href="https://servicebooking.nira.go.ug"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-[#D90000] font-medium mt-3 hover:underline"
-          >
-            Visit NIRA Pre-Registration <ExternalLink className="w-4 h-4" />
-          </a>
-        </Alert>
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
