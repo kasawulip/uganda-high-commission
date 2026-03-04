@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
@@ -8,16 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { 
   UserPlus, RefreshCw, CreditCard, Edit3, ChevronLeft, ChevronRight, 
-  Check, Loader2, AlertCircle, ExternalLink, Info, Package, Clock 
+  Check, Loader2, AlertCircle, ExternalLink, Info, Package, Clock,
+  Users, TrendingUp
 } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 
@@ -75,6 +70,7 @@ const serviceDetails = {
     icon: RefreshCw,
     color: "bg-emerald-500",
     schedulingRule: "default",
+    requiresNIN: true,
     requirements: [
       "Your current National ID (original or photocopy).",
       "If you lost your National ID and have no photocopy, ensure you have your National Identification Number (NIN) correctly written down.",
@@ -126,7 +122,6 @@ const services = [
 
 // International name validation - allows letters, spaces, hyphens, apostrophes, and common diacritics
 const isValidName = (name) => {
-  // Pattern allows: letters (including accented), spaces, hyphens, apostrophes
   const namePattern = /^[a-zA-ZÀ-ÿ\u00C0-\u024F\u1E00-\u1EFF]+([\s'-][a-zA-ZÀ-ÿ\u00C0-\u024F\u1E00-\u1EFF]+)*$/;
   return namePattern.test(name.trim()) && name.trim().length >= 2;
 };
@@ -134,11 +129,17 @@ const isValidName = (name) => {
 // Phone validation for UK (+44) and Uganda (+256) numbers
 const isValidPhone = (phone) => {
   const cleanPhone = phone.replace(/\s/g, '');
-  // UK: +44 followed by 10 digits OR 0 followed by 10 digits
   const ukPattern = /^(\+44\d{10}|0\d{10})$/;
-  // Uganda: +256 followed by 9 digits OR 0 followed by 9 digits
   const ugandaPattern = /^(\+256\d{9}|0\d{9})$/;
   return ukPattern.test(cleanPhone) || ugandaPattern.test(cleanPhone);
+};
+
+// Capacity level colors and labels
+const capacityLevels = {
+  available: { color: "bg-green-500", textColor: "text-green-700", bgColor: "bg-green-50", label: "Available", icon: "✓" },
+  moderate: { color: "bg-yellow-500", textColor: "text-yellow-700", bgColor: "bg-yellow-50", label: "Filling Up", icon: "●" },
+  limited: { color: "bg-orange-500", textColor: "text-orange-700", bgColor: "bg-orange-50", label: "Limited", icon: "!" },
+  full: { color: "bg-red-500", textColor: "text-red-700", bgColor: "bg-red-50", label: "Full", icon: "✗" }
 };
 
 export default function BookingPage() {
@@ -149,6 +150,8 @@ export default function BookingPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [disabledDates, setDisabledDates] = useState([]);
+  const [capacityData, setCapacityData] = useState({});
+  const [loadingCapacity, setLoadingCapacity] = useState(false);
   
   const [formData, setFormData] = useState({
     surname: "",
@@ -163,23 +166,48 @@ export default function BookingPage() {
 
   const [errors, setErrors] = useState({});
 
+  // Fetch capacity data for the calendar
+  const fetchCapacity = useCallback(async (serviceType = null) => {
+    setLoadingCapacity(true);
+    try {
+      const url = serviceType 
+        ? `${API}/capacity?service_type=${serviceType}`
+        : `${API}/capacity`;
+      const response = await axios.get(url);
+      
+      // Convert array to object keyed by date for quick lookup
+      const capacityMap = {};
+      response.data.capacity.forEach(item => {
+        capacityMap[item.date] = item;
+      });
+      setCapacityData(capacityMap);
+    } catch (error) {
+      console.error("Failed to fetch capacity:", error);
+    } finally {
+      setLoadingCapacity(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (preselectedService && services.find(s => s.id === preselectedService)) {
       setFormData(prev => ({ ...prev, service_type: preselectedService }));
       fetchDisabledDates(preselectedService);
+      fetchCapacity(preselectedService);
     } else {
       fetchDisabledDates();
+      fetchCapacity();
     }
-  }, [preselectedService]);
+  }, [preselectedService, fetchCapacity]);
 
-  // Refetch disabled dates when service type changes
+  // Refetch disabled dates and capacity when service type changes
   useEffect(() => {
     if (formData.service_type) {
       fetchDisabledDates(formData.service_type);
+      fetchCapacity(formData.service_type);
       // Reset date and time when service changes
       setFormData(prev => ({ ...prev, appointment_date: null, appointment_time: "" }));
     }
-  }, [formData.service_type]);
+  }, [formData.service_type, fetchCapacity]);
 
   const fetchDisabledDates = async (serviceType = null) => {
     try {
@@ -225,9 +253,10 @@ export default function BookingPage() {
     if (!formData.service_type) {
       newErrors.service_type = "Please select a service";
     }
-    // If card pickup is selected, NIN or Application Number is required
-    if (formData.service_type === "card_pickup" && !formData.nin_or_application_number.trim()) {
-      newErrors.nin_or_application_number = "NIN or Application Number is required for Card Pick-up";
+    // If card pickup or renewal is selected, NIN or Application Number is required
+    const selectedSvc = serviceDetails[formData.service_type];
+    if (selectedSvc?.requiresNIN && !formData.nin_or_application_number.trim()) {
+      newErrors.nin_or_application_number = `NIN or Application Number is required for ${selectedSvc.title}`;
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -292,7 +321,14 @@ export default function BookingPage() {
     );
   };
 
+  // Get capacity info for a specific date
+  const getDateCapacity = (date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    return capacityData[dateStr] || null;
+  };
+
   const selectedService = formData.service_type ? serviceDetails[formData.service_type] : null;
+  const selectedDateCapacity = formData.appointment_date ? getDateCapacity(formData.appointment_date) : null;
 
   return (
     <div className="min-h-screen bg-[#F3F4F6] py-6 md:py-8">
@@ -304,35 +340,43 @@ export default function BookingPage() {
             onClick={handleBack}
             className="mb-3 md:mb-4"
             data-testid="back-btn"
+            aria-label="Go back to previous page"
           >
-            <ChevronLeft className="w-4 h-4 mr-2" /> Back
+            <ChevronLeft className="w-4 h-4 mr-2" aria-hidden="true" /> Back
           </Button>
           <h1 className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">Book Your Appointment</h1>
           <p className="text-[#4B5563] mt-1 md:mt-2 text-sm md:text-base">Complete the form below to schedule your visit</p>
         </div>
 
-        {/* Progress Steps */}
-        <div className="flex items-center justify-between mb-6 md:mb-8">
-          {[1, 2, 3].map((s, index) => (
-            <div key={s} className="flex items-center flex-1">
-              <div className="flex flex-col items-center">
-                <div 
-                  className={`step-indicator ${
-                    step > s ? 'completed' : step === s ? 'active' : 'pending'
-                  }`}
-                >
-                  {step > s ? <Check className="w-5 h-5" /> : s}
+        {/* Progress Steps - Accessible */}
+        <nav aria-label="Booking progress" className="mb-6 md:mb-8">
+          <ol className="flex items-center justify-between" role="list">
+            {[
+              { num: 1, label: "Personal Details" },
+              { num: 2, label: "Service Selection" },
+              { num: 3, label: "Date & Time" }
+            ].map((s, index) => (
+              <li key={s.num} className="flex items-center flex-1">
+                <div className="flex flex-col items-center">
+                  <div 
+                    className={`step-indicator ${
+                      step > s.num ? 'completed' : step === s.num ? 'active' : 'pending'
+                    }`}
+                    aria-current={step === s.num ? "step" : undefined}
+                    role="img"
+                    aria-label={`Step ${s.num}: ${s.label} - ${step > s.num ? 'completed' : step === s.num ? 'current' : 'pending'}`}
+                  >
+                    {step > s.num ? <Check className="w-5 h-5" aria-hidden="true" /> : s.num}
+                  </div>
+                  <span className="text-xs mt-2 text-[#4B5563] hidden sm:block">{s.label.split(' ')[0]}</span>
                 </div>
-                <span className="text-xs mt-2 text-[#4B5563] hidden sm:block">
-                  {s === 1 ? "Details" : s === 2 ? "Service" : "Date"}
-                </span>
-              </div>
-              {index < 2 && (
-                <div className={`step-connector mx-1 md:mx-2 ${step > s ? 'active' : ''}`} />
-              )}
-            </div>
-          ))}
-        </div>
+                {index < 2 && (
+                  <div className={`step-connector mx-1 md:mx-2 ${step > s.num ? 'active' : ''}`} aria-hidden="true" />
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
 
         {/* Step Content */}
         <Card className="shadow-lg border-0">
@@ -346,7 +390,7 @@ export default function BookingPage() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="surname">Surname *</Label>
+                    <Label htmlFor="surname">Surname <span className="text-red-500" aria-hidden="true">*</span></Label>
                     <Input
                       id="surname"
                       data-testid="surname-input"
@@ -354,13 +398,17 @@ export default function BookingPage() {
                       onChange={(e) => handleInputChange("surname", e.target.value)}
                       placeholder="Enter your surname"
                       className={errors.surname ? "border-red-500" : ""}
+                      aria-required="true"
+                      aria-invalid={!!errors.surname}
+                      aria-describedby={errors.surname ? "surname-error" : undefined}
+                      autoComplete="family-name"
                     />
                     {errors.surname && (
-                      <p className="text-red-500 text-xs md:text-sm mt-1">{errors.surname}</p>
+                      <p id="surname-error" className="text-red-500 text-xs md:text-sm mt-1" role="alert">{errors.surname}</p>
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="first_name">First Name *</Label>
+                    <Label htmlFor="first_name">First Name <span className="text-red-500" aria-hidden="true">*</span></Label>
                     <Input
                       id="first_name"
                       data-testid="first-name-input"
@@ -368,14 +416,18 @@ export default function BookingPage() {
                       onChange={(e) => handleInputChange("first_name", e.target.value)}
                       placeholder="Enter your first name"
                       className={errors.first_name ? "border-red-500" : ""}
+                      aria-required="true"
+                      aria-invalid={!!errors.first_name}
+                      aria-describedby={errors.first_name ? "firstname-error" : undefined}
+                      autoComplete="given-name"
                     />
                     {errors.first_name && (
-                      <p className="text-red-500 text-xs md:text-sm mt-1">{errors.first_name}</p>
+                      <p id="firstname-error" className="text-red-500 text-xs md:text-sm mt-1" role="alert">{errors.first_name}</p>
                     )}
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="email">Email Address *</Label>
+                  <Label htmlFor="email">Email Address <span className="text-red-500" aria-hidden="true">*</span></Label>
                   <Input
                     id="email"
                     type="email"
@@ -384,24 +436,33 @@ export default function BookingPage() {
                     onChange={(e) => handleInputChange("email", e.target.value)}
                     placeholder="your.email@example.com"
                     className={errors.email ? "border-red-500" : ""}
+                    aria-required="true"
+                    aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? "email-error" : undefined}
+                    autoComplete="email"
                   />
                   {errors.email && (
-                    <p className="text-red-500 text-xs md:text-sm mt-1">{errors.email}</p>
+                    <p id="email-error" className="text-red-500 text-xs md:text-sm mt-1" role="alert">{errors.email}</p>
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="phone">Phone Number (UK or Uganda) *</Label>
+                  <Label htmlFor="phone">Phone Number (UK or Uganda) <span className="text-red-500" aria-hidden="true">*</span></Label>
                   <Input
                     id="phone"
+                    type="tel"
                     data-testid="phone-input"
                     value={formData.phone}
                     onChange={(e) => handleInputChange("phone", e.target.value)}
                     placeholder="+447123456789 or +256701234567"
                     className={errors.phone ? "border-red-500" : ""}
+                    aria-required="true"
+                    aria-invalid={!!errors.phone}
+                    aria-describedby="phone-hint phone-error"
+                    autoComplete="tel"
                   />
-                  <p className="text-xs text-[#6B7280] mt-1">UK (+44) or Uganda (+256) numbers accepted</p>
+                  <p id="phone-hint" className="text-xs text-[#6B7280] mt-1">UK (+44) or Uganda (+256) numbers accepted</p>
                   {errors.phone && (
-                    <p className="text-red-500 text-xs md:text-sm mt-1">{errors.phone}</p>
+                    <p id="phone-error" className="text-red-500 text-xs md:text-sm mt-1" role="alert">{errors.phone}</p>
                   )}
                 </div>
               </CardContent>
@@ -417,37 +478,50 @@ export default function BookingPage() {
               </CardHeader>
               <CardContent>
                 {errors.service_type && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertCircle className="h-4 w-4" />
+                  <Alert variant="destructive" className="mb-4" role="alert">
+                    <AlertCircle className="h-4 w-4" aria-hidden="true" />
                     <AlertDescription>{errors.service_type}</AlertDescription>
                   </Alert>
                 )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-6">
-                  {services.map((service) => (
-                    <div
-                      key={service.id}
-                      data-testid={`select-service-${service.id}`}
-                      className={`service-card ${formData.service_type === service.id ? 'selected' : ''}`}
-                      onClick={() => handleInputChange("service_type", service.id)}
-                    >
-                      <div className={`service-icon ${service.color} mb-3`}>
-                        <service.icon className="w-5 h-5 text-white" />
-                      </div>
-                      <h4 className="font-semibold text-[#1A1A1A] text-sm md:text-base">{service.title}</h4>
-                      {formData.service_type === service.id && (
-                        <div className="absolute top-3 right-3">
-                          <Check className="w-5 h-5 text-[#D90000]" />
+                <fieldset>
+                  <legend className="sr-only">Select a service type</legend>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-6" role="radiogroup">
+                    {services.map((service) => (
+                      <div
+                        key={service.id}
+                        data-testid={`select-service-${service.id}`}
+                        className={`service-card ${formData.service_type === service.id ? 'selected' : ''}`}
+                        onClick={() => handleInputChange("service_type", service.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleInputChange("service_type", service.id);
+                          }
+                        }}
+                        role="radio"
+                        aria-checked={formData.service_type === service.id}
+                        tabIndex={0}
+                        aria-label={`${service.title}${formData.service_type === service.id ? ' - selected' : ''}`}
+                      >
+                        <div className={`service-icon ${service.color} mb-3`} aria-hidden="true">
+                          <service.icon className="w-5 h-5 text-white" />
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                        <h4 className="font-semibold text-[#1A1A1A] text-sm md:text-base">{service.title}</h4>
+                        {formData.service_type === service.id && (
+                          <div className="absolute top-3 right-3" aria-hidden="true">
+                            <Check className="w-5 h-5 text-[#D90000]" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </fieldset>
 
-                {/* NIN/Application Number input for Card Pickup */}
-                {formData.service_type === "card_pickup" && (
+                {/* NIN/Application Number input for services that require it */}
+                {selectedService?.requiresNIN && (
                   <div className="mb-6 p-4 bg-rose-50 rounded-lg border border-rose-200">
                     <Label htmlFor="nin_or_application_number" className="text-[#1A1A1A] font-medium">
-                      NIN or Application Number *
+                      NIN or Application Number <span className="text-red-500" aria-hidden="true">*</span>
                     </Label>
                     <Input
                       id="nin_or_application_number"
@@ -456,45 +530,48 @@ export default function BookingPage() {
                       onChange={(e) => handleInputChange("nin_or_application_number", e.target.value)}
                       placeholder="Enter your NIN or Application Number"
                       className={`mt-2 ${errors.nin_or_application_number ? "border-red-500" : ""}`}
+                      aria-required="true"
+                      aria-invalid={!!errors.nin_or_application_number}
+                      aria-describedby={errors.nin_or_application_number ? "nin-error" : undefined}
                     />
                     {errors.nin_or_application_number && (
-                      <p className="text-red-500 text-xs md:text-sm mt-1">{errors.nin_or_application_number}</p>
+                      <p id="nin-error" className="text-red-500 text-xs md:text-sm mt-1" role="alert">{errors.nin_or_application_number}</p>
                     )}
                   </div>
                 )}
 
                 {/* Service Requirements */}
                 {selectedService && (
-                  <div className="bg-[#F9FAFB] rounded-lg p-6 border border-gray-200">
+                  <div className="bg-[#F9FAFB] rounded-lg p-4 md:p-6 border border-gray-200">
                     <h4 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
-                      <Info className="w-5 h-5 text-[#D90000]" />
+                      <Info className="w-5 h-5 text-[#D90000]" aria-hidden="true" />
                       Requirements for {selectedService.title}
                     </h4>
                     
                     {selectedService.description && (
-                      <p className="text-[#4B5563] mb-4">{selectedService.description}</p>
+                      <p className="text-[#4B5563] mb-4 text-sm md:text-base">{selectedService.description}</p>
                     )}
 
                     {/* Fresh Registration has age-based requirements */}
                     {formData.service_type === "fresh_registration" && (
                       <div className="space-y-6">
                         <div>
-                          <h5 className="font-medium text-[#1A1A1A] mb-2">
+                          <h5 className="font-medium text-[#1A1A1A] mb-2 text-sm md:text-base">
                             {selectedService.below_18.title}
                           </h5>
                           <ul className="requirements-list">
                             {selectedService.below_18.requirements.map((req, i) => (
-                              <li key={i} className="text-[#4B5563]">{req}</li>
+                              <li key={i} className="text-[#4B5563] text-sm md:text-base">{req}</li>
                             ))}
                           </ul>
                         </div>
                         <div>
-                          <h5 className="font-medium text-[#1A1A1A] mb-2">
+                          <h5 className="font-medium text-[#1A1A1A] mb-2 text-sm md:text-base">
                             {selectedService.above_18.title}
                           </h5>
                           <ul className="requirements-list">
                             {selectedService.above_18.requirements.map((req, i) => (
-                              <li key={i} className="text-[#4B5563]">{req}</li>
+                              <li key={i} className="text-[#4B5563] text-sm md:text-base">{req}</li>
                             ))}
                           </ul>
                         </div>
@@ -505,7 +582,7 @@ export default function BookingPage() {
                     {formData.service_type !== "fresh_registration" && selectedService.requirements && (
                       <ul className="requirements-list">
                         {selectedService.requirements.map((req, i) => (
-                          <li key={i} className="text-[#4B5563]">{req}</li>
+                          <li key={i} className="text-[#4B5563] text-sm md:text-base">{req}</li>
                         ))}
                       </ul>
                     )}
@@ -515,9 +592,10 @@ export default function BookingPage() {
                         href={selectedService.link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-[#D90000] font-medium mt-4 hover:underline"
+                        className="inline-flex items-center gap-2 text-[#D90000] font-medium mt-4 hover:underline text-sm md:text-base"
                       >
-                        Visit NIRA Website for Details <ExternalLink className="w-4 h-4" />
+                        Visit NIRA Website for Details <ExternalLink className="w-4 h-4" aria-hidden="true" />
+                        <span className="sr-only">(opens in new tab)</span>
                       </a>
                     )}
                   </div>
@@ -541,16 +619,33 @@ export default function BookingPage() {
               </CardHeader>
               <CardContent>
                 {(errors.appointment_date || errors.appointment_time) && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertCircle className="h-4 w-4" />
+                  <Alert variant="destructive" className="mb-4" role="alert">
+                    <AlertCircle className="h-4 w-4" aria-hidden="true" />
                     <AlertDescription>
                       {errors.appointment_date || errors.appointment_time}
                     </AlertDescription>
                   </Alert>
                 )}
+
+                {/* Capacity Legend */}
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-4 h-4 text-gray-600" aria-hidden="true" />
+                    <span className="text-sm font-medium text-gray-700">Availability Legend</span>
+                    {loadingCapacity && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-xs">
+                    {Object.entries(capacityLevels).map(([key, level]) => (
+                      <div key={key} className="flex items-center gap-1.5">
+                        <span className={`w-3 h-3 rounded-full ${level.color}`} aria-hidden="true"></span>
+                        <span className="text-gray-600">{level.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Calendar */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Calendar with Capacity Indicators */}
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Select Date</Label>
                     <div className="flex justify-center">
@@ -563,10 +658,80 @@ export default function BookingPage() {
                           today.setHours(0, 0, 0, 0);
                           return date < today || isDateDisabled(date);
                         }}
+                        modifiers={{
+                          available: (date) => {
+                            const capacity = getDateCapacity(date);
+                            return capacity?.level === 'available';
+                          },
+                          moderate: (date) => {
+                            const capacity = getDateCapacity(date);
+                            return capacity?.level === 'moderate';
+                          },
+                          limited: (date) => {
+                            const capacity = getDateCapacity(date);
+                            return capacity?.level === 'limited';
+                          },
+                          full: (date) => {
+                            const capacity = getDateCapacity(date);
+                            return capacity?.level === 'full';
+                          }
+                        }}
+                        modifiersStyles={{
+                          available: { 
+                            backgroundColor: '#dcfce7',
+                            color: '#166534'
+                          },
+                          moderate: { 
+                            backgroundColor: '#fef9c3',
+                            color: '#854d0e'
+                          },
+                          limited: { 
+                            backgroundColor: '#fed7aa',
+                            color: '#c2410c'
+                          },
+                          full: { 
+                            backgroundColor: '#fecaca',
+                            color: '#b91c1c'
+                          }
+                        }}
                         className="rounded-md border shadow-sm"
                         data-testid="appointment-calendar"
+                        aria-label="Select appointment date"
                       />
                     </div>
+                    
+                    {/* Selected Date Capacity Info */}
+                    {selectedDateCapacity && formData.appointment_date && (
+                      <div className={`mt-3 p-3 rounded-lg ${capacityLevels[selectedDateCapacity.level]?.bgColor || 'bg-gray-50'}`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Users className="w-4 h-4" aria-hidden="true" />
+                            <span className="text-sm font-medium">
+                              {format(formData.appointment_date, "MMM d")} Availability
+                            </span>
+                          </div>
+                          <Badge variant="outline" className={capacityLevels[selectedDateCapacity.level]?.textColor}>
+                            {selectedDateCapacity.available} slots left
+                          </Badge>
+                        </div>
+                        <div className="mt-2">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full ${capacityLevels[selectedDateCapacity.level]?.color}`}
+                              style={{ width: `${selectedDateCapacity.utilization_percent}%` }}
+                              role="progressbar"
+                              aria-valuenow={selectedDateCapacity.utilization_percent}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label={`${selectedDateCapacity.utilization_percent}% booked`}
+                            ></div>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {selectedDateCapacity.booked} of 50 slots booked ({selectedDateCapacity.utilization_percent}%)
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Time Slots */}
@@ -574,34 +739,41 @@ export default function BookingPage() {
                     <Label className="text-sm font-medium mb-2 block">Select Time Slot</Label>
                     <div className="bg-[#F9FAFB] p-4 rounded-lg border">
                       <div className="flex items-center gap-2 mb-4 text-sm text-[#4B5563]">
-                        <Clock className="w-4 h-4" />
+                        <Clock className="w-4 h-4" aria-hidden="true" />
                         <span>Time Window: {TIME_WINDOW}</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {TIME_SLOTS.map((slot) => (
-                          <button
-                            key={slot.value}
-                            type="button"
-                            data-testid={`time-slot-${slot.value}`}
-                            onClick={() => handleInputChange("appointment_time", slot.value)}
-                            className={`p-3 rounded-md text-sm font-medium transition-all ${
-                              formData.appointment_time === slot.value
-                                ? 'bg-[#D90000] text-white'
-                                : 'bg-white border border-gray-300 text-[#1A1A1A] hover:border-[#D90000]'
-                            }`}
-                          >
-                            {slot.label}
-                          </button>
-                        ))}
-                      </div>
+                      <fieldset>
+                        <legend className="sr-only">Select a time slot</legend>
+                        <div className="grid grid-cols-2 gap-2" role="radiogroup">
+                          {TIME_SLOTS.map((slot) => (
+                            <button
+                              key={slot.value}
+                              type="button"
+                              data-testid={`time-slot-${slot.value}`}
+                              onClick={() => handleInputChange("appointment_time", slot.value)}
+                              className={`p-3 rounded-md text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-[#D90000] focus:ring-offset-2 ${
+                                formData.appointment_time === slot.value
+                                  ? 'bg-[#D90000] text-white'
+                                  : 'bg-white border border-gray-300 text-[#1A1A1A] hover:border-[#D90000]'
+                              }`}
+                              role="radio"
+                              aria-checked={formData.appointment_time === slot.value}
+                              aria-label={`${slot.label}${formData.appointment_time === slot.value ? ' - selected' : ''}`}
+                            >
+                              {slot.label}
+                            </button>
+                          ))}
+                        </div>
+                      </fieldset>
                     </div>
                   </div>
                 </div>
                 
                 {/* Selection Summary */}
                 {formData.appointment_date && formData.appointment_time && (
-                  <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200" role="status" aria-live="polite">
                     <p className="text-green-800 font-medium">
+                      <Check className="w-4 h-4 inline mr-2" aria-hidden="true" />
                       Selected: {format(formData.appointment_date, "EEEE, MMMM do, yyyy")} at {TIME_SLOTS.find(s => s.value === formData.appointment_time)?.label}
                     </p>
                   </div>
@@ -609,8 +781,8 @@ export default function BookingPage() {
                 
                 {/* Important Notice */}
                 <Alert className="mt-4 border-[#D90000] bg-red-50">
-                  <AlertCircle className="h-4 w-4 text-[#D90000]" />
-                  <AlertDescription className="text-[#D90000] font-medium">
+                  <AlertCircle className="h-4 w-4 text-[#D90000]" aria-hidden="true" />
+                  <AlertDescription className="text-[#D90000] font-medium text-sm md:text-base">
                     You are required to present yourself at the Uganda High Commission within the scheduled 
                     timeframe ({TIME_WINDOW}) on your selected appointment date. Late arrivals outside 
                     this timeframe may not be attended to.
@@ -620,63 +792,64 @@ export default function BookingPage() {
                 {/* Summary */}
                 <div className="mt-6 p-4 bg-[#F9FAFB] rounded-lg border">
                   <h4 className="font-semibold text-[#1A1A1A] mb-3">Booking Summary</h4>
-                  <div className="space-y-2 text-sm">
+                  <dl className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-[#4B5563]">Name:</span>
-                      <span className="font-medium">{formData.first_name} {formData.surname}</span>
+                      <dt className="text-[#4B5563]">Name:</dt>
+                      <dd className="font-medium">{formData.first_name} {formData.surname}</dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#4B5563]">Email:</span>
-                      <span className="font-medium">{formData.email}</span>
+                      <dt className="text-[#4B5563]">Email:</dt>
+                      <dd className="font-medium break-all">{formData.email}</dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#4B5563]">Phone:</span>
-                      <span className="font-medium">{formData.phone}</span>
+                      <dt className="text-[#4B5563]">Phone:</dt>
+                      <dd className="font-medium">{formData.phone}</dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#4B5563]">Service:</span>
-                      <span className="font-medium">{selectedService?.title}</span>
+                      <dt className="text-[#4B5563]">Service:</dt>
+                      <dd className="font-medium">{selectedService?.title}</dd>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#4B5563]">Time Window:</span>
-                      <span className="font-medium">{TIME_WINDOW}</span>
+                      <dt className="text-[#4B5563]">Time Window:</dt>
+                      <dd className="font-medium">{TIME_WINDOW}</dd>
                     </div>
-                  </div>
+                  </dl>
                 </div>
               </CardContent>
             </>
           )}
 
           {/* Navigation Buttons */}
-          <div className="px-6 pb-6 flex justify-between">
+          <div className="px-4 md:px-6 pb-6 flex flex-col sm:flex-row justify-between gap-3">
             <Button 
               variant="outline" 
               onClick={handleBack}
               data-testid="step-back-btn"
+              className="order-2 sm:order-1"
             >
-              <ChevronLeft className="w-4 h-4 mr-2" />
+              <ChevronLeft className="w-4 h-4 mr-2" aria-hidden="true" />
               {step === 1 ? "Cancel" : "Back"}
             </Button>
             <Button 
               onClick={handleNext}
               disabled={loading}
-              className="btn-primary"
+              className="btn-primary order-1 sm:order-2"
               data-testid="step-next-btn"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Booking...
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />
+                  <span>Booking...</span>
                 </>
               ) : step === 3 ? (
                 <>
-                  Confirm Booking
-                  <Check className="w-4 h-4 ml-2" />
+                  <span>Confirm Booking</span>
+                  <Check className="w-4 h-4 ml-2" aria-hidden="true" />
                 </>
               ) : (
                 <>
-                  Next
-                  <ChevronRight className="w-4 h-4 ml-2" />
+                  <span>Next</span>
+                  <ChevronRight className="w-4 h-4 ml-2" aria-hidden="true" />
                 </>
               )}
             </Button>

@@ -684,6 +684,82 @@ async def get_time_slots():
         "time_window": TIME_WINDOW
     }
 
+@api_router.get("/capacity")
+async def get_public_capacity(
+    service_type: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None
+):
+    """Get public capacity/availability for booking page (no auth required)"""
+    today = date.today()
+    start_date = date_from or today.isoformat()
+    end_date = date_to or (today + timedelta(days=60)).isoformat()
+    
+    # Define max slots per day (based on realistic capacity)
+    max_slots_per_day = 50  # Realistic daily capacity
+    
+    # Get non-cancelled appointments in date range
+    query = {
+        "appointment_date": {"$gte": start_date, "$lte": end_date},
+        "status": {"$nin": ["cancelled", "rejected"]}
+    }
+    if service_type:
+        query["service_type"] = service_type
+    
+    appointments = await db.appointments.find(query, {"_id": 0, "appointment_date": 1}).to_list(None)
+    
+    # Count bookings per date
+    bookings_by_date = {}
+    for apt in appointments:
+        apt_date = apt.get('appointment_date', '')[:10]
+        bookings_by_date[apt_date] = bookings_by_date.get(apt_date, 0) + 1
+    
+    # Build capacity response for each valid date
+    capacity_data = []
+    current = datetime.strptime(start_date, "%Y-%m-%d").date()
+    end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    
+    # Determine service type for date validation
+    try:
+        svc_type = ServiceType(service_type) if service_type else ServiceType.FRESH_REGISTRATION
+    except ValueError:
+        svc_type = ServiceType.FRESH_REGISTRATION
+    
+    while current <= end:
+        date_str = current.isoformat()
+        
+        # Only include valid appointment dates
+        if is_valid_appointment_date_for_service(current, svc_type):
+            booked = bookings_by_date.get(date_str, 0)
+            available = max(0, max_slots_per_day - booked)
+            utilization = round((booked / max_slots_per_day) * 100, 1) if max_slots_per_day > 0 else 0
+            
+            # Determine availability level
+            if available == 0:
+                level = "full"
+            elif utilization >= 80:
+                level = "limited"
+            elif utilization >= 50:
+                level = "moderate"
+            else:
+                level = "available"
+            
+            capacity_data.append({
+                "date": date_str,
+                "booked": booked,
+                "available": available,
+                "utilization_percent": utilization,
+                "level": level
+            })
+        
+        current += timedelta(days=1)
+    
+    return {
+        "capacity": capacity_data,
+        "max_slots_per_day": max_slots_per_day,
+        "service_type": service_type
+    }
+
 @api_router.post("/appointments", response_model=Appointment)
 async def create_appointment(appointment_data: AppointmentCreate):
     """Create a new appointment with race condition handling"""
