@@ -155,6 +155,7 @@ class Appointment(BaseModel):
     email: str
     phone: str
     service_type: ServiceType
+    applicant_type: Optional[str] = None  # For fresh_registration: "below_18" or "above_18"
     appointment_date: str  # Stored as ISO string
     appointment_time: str = "10:00"  # Default time slot
     time_window: str = "10:00 AM – 1:00 PM"  # Always this window
@@ -282,8 +283,7 @@ SERVICE_REQUIREMENTS = {
         "title": "Card Pick-up",
         "description": "This service is for persons who have completed the registration process and their National ID card is ready for collection.",
         "requirements": [
-            "Your National Identification Number (NIN) or Application Number.",
-            "A valid form of identification for verification."
+            "Your National Identification Number (NIN) or Application Number."
         ]
     }
 }
@@ -315,7 +315,7 @@ STANDARD_SERVICES = [ServiceType.FRESH_REGISTRATION, ServiceType.GET_FIRST_ID,
 CARD_PICKUP_SERVICES = [ServiceType.CARD_PICKUP]
 
 # Services requiring NIN
-NIN_REQUIRED_SERVICES = [ServiceType.CARD_PICKUP, ServiceType.RENEWAL]
+NIN_REQUIRED_SERVICES = [ServiceType.CARD_PICKUP]
 
 # Time slots available: 10:00 AM - 1:00 PM
 TIME_SLOTS = ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30"]
@@ -491,70 +491,83 @@ def generate_pdf(appointment: dict) -> bytes:
     story.append(Paragraph(venue_text, normal_style))
     story.append(Spacer(1, 20))
     
-    # What to bring
+    # What to bring - Service-specific requirements
     story.append(Paragraph("WHAT TO BRING", header_style))
-    bring_text = """
-    Please bring this confirmation letter along with all required documents on your appointment date.
-    <br/><br/>
-    For any inquiries, please contact the High Commission or call the NIRA toll-free line: <b>0800 211 700</b>
+    
+    service_type = appointment.get('service_type', '')
+    applicant_type = appointment.get('applicant_type', '')  # For fresh registration
+    
+    # Define service-specific requirements
+    service_requirements = {
+        "fresh_registration_below_18": [
+            "A copy of either parent's National ID. (If both parents are deceased, provide a National ID of a blood relative.)",
+            "The applicant (child) must be escorted by a parent or guardian who has a National ID.",
+            "No fee shall be charged for this service."
+        ],
+        "fresh_registration_above_18": [
+            "A copy of either parent's National ID. (If both parents are deceased, provide a National ID of a blood relative.)",
+            "Recommendation Letter from the Uganda Embassy (issued upon a physical visit to the Embassy for biometric capture).",
+            "No fee shall be charged for this service."
+        ],
+        "renewal": [
+            "Your current National ID (original or photocopy).",
+            "If you lost your National ID and have no photocopy, ensure you have your National Identification Number (NIN) correctly written down.",
+            "No fee shall be charged for this service."
+        ],
+        "get_first_id": [
+            "National Identification Number (NIN) only."
+        ],
+        "change_of_particulars": [
+            "Visit the NIRA website for full details on the particular requirements for the change you desire to undertake: https://www.nira.go.ug"
+        ],
+        "card_pickup": [
+            "Your National Identification Number (NIN) or Application Number."
+        ]
+    }
+    
+    # Get the appropriate requirements
+    if service_type == "fresh_registration":
+        if applicant_type == "below_18":
+            requirements = service_requirements["fresh_registration_below_18"]
+        else:
+            requirements = service_requirements["fresh_registration_above_18"]
+    else:
+        requirements = service_requirements.get(service_type, ["Please bring all required documents."])
+    
+    # Build requirements text
+    requirements_text = "Please bring this confirmation letter along with the following:<br/><br/>"
+    for i, req in enumerate(requirements, 1):
+        requirements_text += f"{i}. {req}<br/>"
+    
+    requirements_text += "<br/>For any inquiries, please contact the High Commission via <b>02031544027 / 02078395783</b>"
+    
+    story.append(Paragraph(requirements_text, normal_style))
+    story.append(Spacer(1, 20))
+    
+    # PRE-REGISTRATION NOTICE - As a proper section (not footnote)
+    story.append(Paragraph("PRE-REGISTRATION NOTICE", header_style))
+    
+    prereg_text = """
+    You are advised to visit the NIRA website and complete the pre-registration process for this service 
+    as this shall help you to be served faster when you physically visit the High Commission. Upon successful 
+    pre-registration, you will receive a pre-registration ID that you shall as well come along with during 
+    the physical visit to the High Commission.
     """
-    story.append(Paragraph(bring_text, normal_style))
-    story.append(Spacer(1, 30))
+    story.append(Paragraph(prereg_text, normal_style))
+    story.append(Spacer(1, 10))
     
-    # Footnote - Pre-registration Notice (styled as a proper footnote)
-    footnote_box_style = ParagraphStyle(
-        'FootnoteBox',
+    # NIRA Pre-registration link - prominently displayed
+    link_style = ParagraphStyle(
+        'LinkStyle',
         parent=styles['Normal'],
-        fontSize=9,
-        textColor=colors.HexColor('#4B5563'),
-        borderColor=colors.HexColor('#D90000'),
-        borderWidth=1,
-        borderPadding=10,
-        backColor=colors.HexColor('#FEF2F2'),
-        leftIndent=0,
-        rightIndent=0,
-    )
-    
-    footnote_header_style = ParagraphStyle(
-        'FootnoteHeader',
-        parent=styles['Normal'],
-        fontSize=10,
-        fontName='Helvetica-Bold',
-        textColor=colors.HexColor('#D90000'),
-        spaceAfter=6,
-    )
-    
-    footnote_link_style = ParagraphStyle(
-        'FootnoteLink',
-        parent=styles['Normal'],
-        fontSize=10,
+        fontSize=11,
         fontName='Helvetica-Bold',
         textColor=colors.HexColor('#D90000'),
         alignment=TA_CENTER,
-        spaceBefore=8,
     )
-    
-    # Create a bordered box for the footnote
-    story.append(Paragraph("* PRE-REGISTRATION NOTICE", footnote_header_style))
-    
-    footnote_text = """
-    You are advised to visit the NIRA website and complete the pre-registration process for this service. 
-    This will help you to be served faster when you physically visit the High Commission. Upon successful 
-    pre-registration, you will receive a pre-registration ID that you should bring along during your visit.
-    """
-    story.append(Paragraph(footnote_text, ParagraphStyle(
-        'FootnoteText',
-        parent=styles['Normal'],
-        fontSize=9,
-        textColor=colors.HexColor('#4B5563'),
-        leftIndent=10,
-    )))
-    
-    # NIRA Pre-registration link - prominently displayed
-    nira_link = '<link href="https://servicebooking.nira.go.ug" color="#D90000"><b>https://servicebooking.nira.go.ug</b></link>'
-    story.append(Spacer(1, 8))
-    story.append(Paragraph(f"NIRA Pre-Registration Portal: {nira_link}", footnote_link_style))
-    story.append(Spacer(1, 20))
+    nira_link = '<link href="https://servicebooking.nira.go.ug" color="#D90000"><b>NIRA Pre-Registration Portal: https://servicebooking.nira.go.ug</b></link>'
+    story.append(Paragraph(nira_link, link_style))
+    story.append(Spacer(1, 30))
     
     # Footer
     footer_style = ParagraphStyle(

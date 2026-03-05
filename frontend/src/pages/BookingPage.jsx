@@ -70,7 +70,7 @@ const serviceDetails = {
     icon: RefreshCw,
     color: "bg-emerald-500",
     schedulingRule: "default",
-    requiresNIN: true,
+    requiresNIN: false,
     requirements: [
       "Your current National ID (original or photocopy).",
       "If you lost your National ID and have no photocopy, ensure you have your National Identification Number (NIN) correctly written down.",
@@ -105,8 +105,7 @@ const serviceDetails = {
     schedulingRule: "card_pickup",
     description: "This service is for persons who have completed the registration process and their National ID card is ready for collection.",
     requirements: [
-      "Your National Identification Number (NIN) or Application Number.",
-      "A valid form of identification for verification."
+      "Your National Identification Number (NIN) or Application Number."
     ],
     requiresNIN: true
   }
@@ -159,6 +158,7 @@ export default function BookingPage() {
     email: "",
     phone: "",
     service_type: preselectedService || "",
+    applicant_type: "", // For fresh registration: "below_18" or "above_18"
     appointment_date: null,
     appointment_time: "",
     nin_or_application_number: ""
@@ -253,7 +253,11 @@ export default function BookingPage() {
     if (!formData.service_type) {
       newErrors.service_type = "Please select a service";
     }
-    // If card pickup or renewal is selected, NIN or Application Number is required
+    // If fresh registration, applicant type is required
+    if (formData.service_type === "fresh_registration" && !formData.applicant_type) {
+      newErrors.applicant_type = "Please select whether applicant is below or above 18 years";
+    }
+    // If card pickup is selected, NIN or Application Number is required
     const selectedSvc = serviceDetails[formData.service_type];
     if (selectedSvc?.requiresNIN && !formData.nin_or_application_number.trim()) {
       newErrors.nin_or_application_number = `NIN or Application Number is required for ${selectedSvc.title}`;
@@ -291,7 +295,8 @@ export default function BookingPage() {
         phone: formData.phone.replace(/\s/g, ''),
         appointment_date: format(formData.appointment_date, "yyyy-MM-dd"),
         appointment_time: formData.appointment_time,
-        nin_or_application_number: formData.nin_or_application_number || null
+        nin_or_application_number: formData.nin_or_application_number || null,
+        applicant_type: formData.applicant_type || null
       };
       
       const response = await axios.post(`${API}/appointments`, payload);
@@ -517,6 +522,78 @@ export default function BookingPage() {
                   </div>
                 </fieldset>
 
+                {/* Applicant Type Selection for Fresh Registration */}
+                {formData.service_type === "fresh_registration" && (
+                  <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <Label className="text-[#1A1A1A] font-medium mb-3 block">
+                      Applicant Age Category <span className="text-red-500" aria-hidden="true">*</span>
+                    </Label>
+                    {errors.applicant_type && (
+                      <p className="text-red-500 text-xs md:text-sm mb-3" role="alert">{errors.applicant_type}</p>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div
+                        data-testid="applicant-type-below-18"
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          formData.applicant_type === "below_18"
+                            ? "border-[#D90000] bg-white shadow-sm"
+                            : "border-gray-200 bg-white hover:border-blue-300"
+                        }`}
+                        onClick={() => handleInputChange("applicant_type", "below_18")}
+                        role="radio"
+                        aria-checked={formData.applicant_type === "below_18"}
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleInputChange("applicant_type", "below_18");
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            formData.applicant_type === "below_18" ? "border-[#D90000]" : "border-gray-300"
+                          }`}>
+                            {formData.applicant_type === "below_18" && (
+                              <div className="w-3 h-3 rounded-full bg-[#D90000]" />
+                            )}
+                          </div>
+                          <span className="font-medium text-[#1A1A1A]">Below Age of 18</span>
+                        </div>
+                      </div>
+                      <div
+                        data-testid="applicant-type-above-18"
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          formData.applicant_type === "above_18"
+                            ? "border-[#D90000] bg-white shadow-sm"
+                            : "border-gray-200 bg-white hover:border-blue-300"
+                        }`}
+                        onClick={() => handleInputChange("applicant_type", "above_18")}
+                        role="radio"
+                        aria-checked={formData.applicant_type === "above_18"}
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleInputChange("applicant_type", "above_18");
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            formData.applicant_type === "above_18" ? "border-[#D90000]" : "border-gray-300"
+                          }`}>
+                            {formData.applicant_type === "above_18" && (
+                              <div className="w-3 h-3 rounded-full bg-[#D90000]" />
+                            )}
+                          </div>
+                          <span className="font-medium text-[#1A1A1A]">Above Age of 18</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* NIN/Application Number input for services that require it */}
                 {selectedService?.requiresNIN && (
                   <div className="mb-6 p-4 bg-rose-50 rounded-lg border border-rose-200">
@@ -546,36 +623,46 @@ export default function BookingPage() {
                     <h4 className="font-semibold text-[#1A1A1A] mb-4 flex items-center gap-2">
                       <Info className="w-5 h-5 text-[#D90000]" aria-hidden="true" />
                       Requirements for {selectedService.title}
+                      {formData.service_type === "fresh_registration" && formData.applicant_type && (
+                        <span className="text-sm font-normal text-[#4B5563]">
+                          ({formData.applicant_type === "below_18" ? "Below 18" : "Above 18"})
+                        </span>
+                      )}
                     </h4>
                     
                     {selectedService.description && (
                       <p className="text-[#4B5563] mb-4 text-sm md:text-base">{selectedService.description}</p>
                     )}
 
-                    {/* Fresh Registration has age-based requirements */}
+                    {/* Fresh Registration - show requirements based on selected age category */}
                     {formData.service_type === "fresh_registration" && (
-                      <div className="space-y-6">
-                        <div>
-                          <h5 className="font-medium text-[#1A1A1A] mb-2 text-sm md:text-base">
-                            {selectedService.below_18.title}
-                          </h5>
-                          <ul className="requirements-list">
-                            {selectedService.below_18.requirements.map((req, i) => (
-                              <li key={i} className="text-[#4B5563] text-sm md:text-base">{req}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div>
-                          <h5 className="font-medium text-[#1A1A1A] mb-2 text-sm md:text-base">
-                            {selectedService.above_18.title}
-                          </h5>
-                          <ul className="requirements-list">
-                            {selectedService.above_18.requirements.map((req, i) => (
-                              <li key={i} className="text-[#4B5563] text-sm md:text-base">{req}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
+                      <>
+                        {!formData.applicant_type ? (
+                          <p className="text-[#6B7280] italic">Please select an age category above to see the requirements.</p>
+                        ) : formData.applicant_type === "below_18" ? (
+                          <div>
+                            <h5 className="font-medium text-[#1A1A1A] mb-2 text-sm md:text-base">
+                              {selectedService.below_18.title}
+                            </h5>
+                            <ul className="requirements-list">
+                              {selectedService.below_18.requirements.map((req, i) => (
+                                <li key={i} className="text-[#4B5563] text-sm md:text-base">{req}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div>
+                            <h5 className="font-medium text-[#1A1A1A] mb-2 text-sm md:text-base">
+                              {selectedService.above_18.title}
+                            </h5>
+                            <ul className="requirements-list">
+                              {selectedService.above_18.requirements.map((req, i) => (
+                                <li key={i} className="text-[#4B5563] text-sm md:text-base">{req}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {/* Other services */}

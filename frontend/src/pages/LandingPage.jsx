@@ -275,8 +275,8 @@ export default function LandingPage() {
                     <Phone className="w-5 h-5 text-[#1A1A1A]" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-[#1A1A1A]">NIRA Toll-Free</h4>
-                    <p className="text-[#4B5563]">0800 211 700</p>
+                    <h4 className="font-semibold text-[#1A1A1A]">ID Services Contact Line</h4>
+                    <p className="text-[#4B5563]">02031544027 / 02078395783</p>
                   </div>
                 </div>
               </div>
