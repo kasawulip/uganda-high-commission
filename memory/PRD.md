@@ -3,63 +3,74 @@
 ## Original Problem Statement
 Build a web-based application for booking appointments for National ID registration at the Uganda High Commission in London.
 
-## Current Status
+## Current Status: PRODUCTION READY ✅
 - **Email Notifications**: ✅ ENABLED (SendGrid verified sender: paul.kasawuli@nira.go.ug)
-- **PDF Generation**: ✅ ENABLED (server-side with ReportLab)
+- **PDF Generation**: ✅ ENABLED (service-specific requirements)
 - **All Features**: Fully operational
 
-## Email Notifications Active
-The following email notifications are now active:
-1. **Confirmation Email** - Sent when appointment is booked (includes PDF attachment)
-2. **Rejection Email** - Sent when Card Pick-up appointment is rejected
-3. **Reschedule Email** - Sent when appointments are bulk rescheduled
+## Recent Updates (March 5, 2026)
+
+### Service Requirements Changes
+1. **Renewal Service** - No longer requires NIN input
+2. **Fresh Registration** - Now requires age category selection:
+   - Below Age of 18: Different requirements (escorted by parent/guardian)
+   - Above Age of 18: Different requirements (Recommendation Letter from Embassy)
+3. **Card Pick-up** - Simplified to only require NIN/Application Number
+
+### PDF Confirmation Letter Updates
+- **WHAT TO BRING** section now shows service-specific requirements
+- **Contact Info**: Updated to "02031544027 / 02078395783"
+- **PRE-REGISTRATION NOTICE**: Now a proper section (not footnote)
+
+### UI Updates
+- **Landing Page**: "NIRA Toll-Free" changed to "ID Services Contact Line" with new numbers
+- **Admin Login**: Default credentials removed from display
 
 ## Architecture
 
 ### Backend (FastAPI + MongoDB)
-- **Email**: SendGrid integration with verified sender
-- **PDF Generation**: Server-side using ReportLab
-- **Race Condition Handling**: Atomic operations with retry logic
-- **RBAC**: Role-Based Access Control
+- Email: SendGrid integration
+- PDF: ReportLab with service-specific content
+- RBAC: Role-Based Access Control
 
 ### Frontend (React + Tailwind CSS + Shadcn UI)
-- **PDF Download**: Blob + anchor method (no pop-up blockers)
-- **Rejection Notifications**: Orange alert in Manage Appointment
-- **Mobile-first**: Tested at 375px viewport
+- Accessible, mobile-first design
+- Age category selection for Fresh Registration
+- Service-specific requirement displays
 
 ## Core Features
 
 ### Guest Booking Flow
 - [x] Multi-step form with validation
-- [x] 5 Service types with requirements
+- [x] 5 Service types with specific requirements
+- [x] Age category selection for Fresh Registration
+- [x] NIN required only for Card Pick-up
 - [x] Real-time capacity indicator
-- [x] Service-specific scheduling
-- [x] PDF confirmation download
-- [x] Email confirmation with PDF attachment
-
-### Manage Appointment
-- [x] View, reschedule, cancel appointments
-- [x] Download PDF confirmation
-- [x] Rejection notifications
+- [x] PDF with service-specific WHAT TO BRING
 
 ### Admin Dashboard
-- [x] Stats, appointments, audit logs
 - [x] Check-in / Mark Served
-- [x] Reject with reason + email notification
-- [x] Bulk reschedule + email notifications
-- [x] User management (Super Admin)
+- [x] Reject with email notification
+- [x] Bulk reschedule with email
+- [x] Audit logs
+- [x] User management
 
-## Configuration
-```
-SENDGRID_API_KEY=SG.xxx
-SENDER_EMAIL=paul.kasawuli@nira.go.ug
-```
+## Service Requirements Summary
+
+| Service | NIN Required | Special |
+|---------|--------------|---------|
+| Fresh Registration | No | Age category selection |
+| Renewal | No | - |
+| Get First ID | No | - |
+| Change of Particulars | No | - |
+| Card Pick-up | Yes | - |
+
+## Contact Information
+- **ID Services Contact Line**: 02031544027 / 02078395783
 
 ## Test Credentials
-- **Admin**: admin / admin123
+- **Admin**: admin / admin123 (Super Admin)
 
-## Completed (March 2026)
-- Full booking system with email notifications
-- PDF generation with pre-registration footnote
-- Admin dashboard with RBAC
-- Rejection notifications in Manage Appointment
+## Email Configuration
+- **SendGrid API Key**: Configured
+- **Verified Sender**: paul.kasawuli@nira.go.ug
