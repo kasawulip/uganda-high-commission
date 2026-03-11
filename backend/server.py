@@ -47,7 +47,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # JWT Configuration
-JWT_SECRET = os.environ.get('JWT_SECRET', 'uganda-high-commission-secret-key-2025')
+JWT_SECRET = os.environ.get('JWT_SECRET', 'uganda-high-commission-nira-secret-key-2026-prod')
 JWT_ALGORITHM = "HS256"
 
 # SendGrid Configuration
