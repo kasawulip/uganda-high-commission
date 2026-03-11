@@ -312,6 +312,18 @@ async def log_audit(user_id: str, username: str, action: str, resource_type: str
 # Card Pickup (Card Issuance): Mon-Fri
 STANDARD_SERVICES = [ServiceType.FRESH_REGISTRATION, ServiceType.GET_FIRST_ID, 
                      ServiceType.CHANGE_OF_PARTICULARS, ServiceType.RENEWAL]
+# Services that share the combined daily limit of 50
+STANDARD_SERVICES = [
+    ServiceType.FRESH_REGISTRATION,
+    ServiceType.RENEWAL,
+    ServiceType.GET_FIRST_ID,
+    ServiceType.CHANGE_OF_PARTICULARS
+]
+
+# Daily booking limits
+STANDARD_SERVICES_DAILY_LIMIT = 50  # Combined limit for Fresh Registration, Renewal, Get First ID, Change of Particulars
+CARD_PICKUP_DAILY_LIMIT = None  # No limit for Card Pick-up
+
 CARD_PICKUP_SERVICES = [ServiceType.CARD_PICKUP]
 
 # Services requiring NIN
@@ -753,21 +765,38 @@ async def get_public_capacity(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None
 ):
-    """Get public capacity/availability for booking page (no auth required)"""
+    """Get public capacity/availability for booking page (no auth required)
+    
+    Capacity Rules:
+    - Fresh Registration, Renewal, Get First ID, Change of Particulars: COMBINED 50/day limit
+    - Card Pick-up: No daily limit
+    """
     today = date.today()
     start_date = date_from or today.isoformat()
     end_date = date_to or (today + timedelta(days=60)).isoformat()
     
-    # Define max slots per day (based on realistic capacity)
-    max_slots_per_day = 50  # Realistic daily capacity
+    # Determine if this is a card pickup service
+    is_card_pickup = service_type == "card_pickup"
     
-    # Get non-cancelled appointments in date range
-    query = {
-        "appointment_date": {"$gte": start_date, "$lte": end_date},
-        "status": {"$nin": ["cancelled", "rejected"]}
-    }
-    if service_type:
-        query["service_type"] = service_type
+    # For standard services (not card pickup), we need to count ALL standard services combined
+    if is_card_pickup:
+        # Card pickup has no limit
+        max_slots_per_day = None
+        query = {
+            "appointment_date": {"$gte": start_date, "$lte": end_date},
+            "status": {"$nin": ["cancelled", "rejected"]},
+            "service_type": "card_pickup"
+        }
+    else:
+        # Standard services share combined limit of 50
+        max_slots_per_day = STANDARD_SERVICES_DAILY_LIMIT
+        # Count ALL standard services (not just the selected one)
+        standard_service_types = ["fresh_registration", "renewal", "get_first_id", "change_of_particulars"]
+        query = {
+            "appointment_date": {"$gte": start_date, "$lte": end_date},
+            "status": {"$nin": ["cancelled", "rejected"]},
+            "service_type": {"$in": standard_service_types}
+        }
     
     appointments = await db.appointments.find(query, {"_id": 0, "appointment_date": 1}).to_list(None)
     
@@ -794,33 +823,49 @@ async def get_public_capacity(
         # Only include valid appointment dates
         if is_valid_appointment_date_for_service(current, svc_type):
             booked = bookings_by_date.get(date_str, 0)
-            available = max(0, max_slots_per_day - booked)
-            utilization = round((booked / max_slots_per_day) * 100, 1) if max_slots_per_day > 0 else 0
             
-            # Determine availability level
-            if available == 0:
-                level = "full"
-            elif utilization >= 80:
-                level = "limited"
-            elif utilization >= 50:
-                level = "moderate"
+            if is_card_pickup:
+                # Card pickup has no limit - always available
+                capacity_data.append({
+                    "date": date_str,
+                    "booked": booked,
+                    "available": None,  # Unlimited
+                    "utilization_percent": 0,
+                    "level": "available",
+                    "has_limit": False
+                })
             else:
-                level = "available"
-            
-            capacity_data.append({
-                "date": date_str,
-                "booked": booked,
-                "available": available,
-                "utilization_percent": utilization,
-                "level": level
-            })
+                # Standard services have combined 50/day limit
+                available = max(0, max_slots_per_day - booked)
+                utilization = round((booked / max_slots_per_day) * 100, 1) if max_slots_per_day > 0 else 0
+                
+                # Determine availability level
+                if available == 0:
+                    level = "full"
+                elif utilization >= 80:
+                    level = "limited"
+                elif utilization >= 50:
+                    level = "moderate"
+                else:
+                    level = "available"
+                
+                capacity_data.append({
+                    "date": date_str,
+                    "booked": booked,
+                    "available": available,
+                    "utilization_percent": utilization,
+                    "level": level,
+                    "has_limit": True
+                })
         
         current += timedelta(days=1)
     
     return {
         "capacity": capacity_data,
         "max_slots_per_day": max_slots_per_day,
-        "service_type": service_type
+        "service_type": service_type,
+        "is_card_pickup": is_card_pickup,
+        "limit_note": "No daily limit" if is_card_pickup else "Combined daily limit of 50 for Fresh Registration, Renewal, Get First ID, and Change of Particulars"
     }
 
 @api_router.post("/appointments", response_model=Appointment)
@@ -853,6 +898,24 @@ async def create_appointment(appointment_data: AppointmentCreate):
             status_code=400,
             detail=f"NIN or Application Number is required for {service_name} service."
         )
+    
+    # Check daily capacity limit for standard services (not Card Pick-up)
+    appointment_date_str = appointment_data.appointment_date.isoformat() if isinstance(appointment_data.appointment_date, date) else str(appointment_data.appointment_date)
+    
+    if appointment_data.service_type in STANDARD_SERVICES:
+        # Count existing bookings for ALL standard services on this date
+        standard_service_types = ["fresh_registration", "renewal", "get_first_id", "change_of_particulars"]
+        existing_count = await db.appointments.count_documents({
+            "appointment_date": appointment_date_str,
+            "status": {"$nin": ["cancelled", "rejected"]},
+            "service_type": {"$in": standard_service_types}
+        })
+        
+        if existing_count >= STANDARD_SERVICES_DAILY_LIMIT:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sorry, the daily booking limit of {STANDARD_SERVICES_DAILY_LIMIT} appointments has been reached for {appointment_date_str}. Please select a different date."
+            )
     
     # Race condition handling: Use atomic operation with retry logic
     max_retries = 3

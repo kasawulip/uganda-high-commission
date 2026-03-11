@@ -698,8 +698,8 @@ export default function BookingPage() {
                 <CardTitle className="text-lg md:text-xl">Select Appointment Date & Time</CardTitle>
                 <CardDescription>
                   {formData.service_type === "card_pickup" 
-                    ? "Card Pick-up appointments are available Monday to Friday, 10:00 AM – 1:00 PM."
-                    : "Appointments are available Monday, Wednesday, and Friday only, 10:00 AM – 1:00 PM."
+                    ? "Card Pick-up appointments are available Monday to Friday, 10:00 AM – 1:00 PM. No daily booking limit."
+                    : "Appointments are available Monday, Wednesday, and Friday only, 10:00 AM – 1:00 PM. Combined daily limit of 50 bookings for this service type."
                   }
                   {" "}Public holidays are not available.
                 </CardDescription>
@@ -714,22 +714,34 @@ export default function BookingPage() {
                   </Alert>
                 )}
 
-                {/* Capacity Legend */}
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
-                  <div className="flex items-center gap-2 mb-2">
-                    <TrendingUp className="w-4 h-4 text-gray-600" aria-hidden="true" />
-                    <span className="text-sm font-medium text-gray-700">Availability Legend</span>
-                    {loadingCapacity && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
+                {/* Capacity Legend - only show for non-card-pickup services */}
+                {formData.service_type !== "card_pickup" && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="w-4 h-4 text-gray-600" aria-hidden="true" />
+                      <span className="text-sm font-medium text-gray-700">Availability (Combined limit: 50/day)</span>
+                      {loadingCapacity && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
+                    </div>
+                    <div className="flex flex-wrap gap-3 text-xs">
+                      {Object.entries(capacityLevels).map(([key, level]) => (
+                        <div key={key} className="flex items-center gap-1.5">
+                          <span className={`w-3 h-3 rounded-full ${level.color}`} aria-hidden="true"></span>
+                          <span className="text-gray-600">{level.label}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-3 text-xs">
-                    {Object.entries(capacityLevels).map(([key, level]) => (
-                      <div key={key} className="flex items-center gap-1.5">
-                        <span className={`w-3 h-3 rounded-full ${level.color}`} aria-hidden="true"></span>
-                        <span className="text-gray-600">{level.label}</span>
-                      </div>
-                    ))}
+                )}
+
+                {/* Card Pickup - no limit notice */}
+                {formData.service_type === "card_pickup" && (
+                  <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-green-600" aria-hidden="true" />
+                      <span className="text-sm text-green-700">Card Pick-up has no daily booking limit. All available dates are open.</span>
+                    </div>
                   </div>
-                </div>
+                )}
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Calendar with Capacity Indicators */}
@@ -787,8 +799,8 @@ export default function BookingPage() {
                       />
                     </div>
                     
-                    {/* Selected Date Capacity Info */}
-                    {selectedDateCapacity && formData.appointment_date && (
+                    {/* Selected Date Capacity Info - only for non-card-pickup */}
+                    {selectedDateCapacity && formData.appointment_date && formData.service_type !== "card_pickup" && (
                       <div className={`mt-3 p-3 rounded-lg ${capacityLevels[selectedDateCapacity.level]?.bgColor || 'bg-gray-50'}`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
