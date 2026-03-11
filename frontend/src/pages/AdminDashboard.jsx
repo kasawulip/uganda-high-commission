@@ -461,8 +461,12 @@ export default function AdminDashboard() {
 
   // Permission checks
   const isSuperAdmin = currentUser?.role === "super_admin";
+  const isOperationsAdmin = currentUser?.role === "operations_admin";
+  const isFrontDesk = currentUser?.role === "front_desk";
   const canManageUsers = isSuperAdmin;
-  const canViewAuditLogs = currentUser?.role === "super_admin" || currentUser?.role === "operations_admin";
+  const canViewAuditLogs = isSuperAdmin || isOperationsAdmin;
+  const canManageAppointments = isSuperAdmin || isOperationsAdmin; // Check-in, Mark Served, Reject, Cancel, Delete
+  const canBulkReschedule = isSuperAdmin || isOperationsAdmin;
 
   if (loading) {
     return (
@@ -719,19 +723,23 @@ export default function AdminDashboard() {
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Refresh
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setShowBulkRescheduleDialog(true)}
-                    data-testid="bulk-reschedule-btn"
-                  >
-                    <CalendarDays className="w-4 h-4 mr-2" />
-                    Bulk Reschedule
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="export-btn">
-                    <Download className="w-4 h-4 mr-2" />
-                    Export CSV
-                  </Button>
+                  {canBulkReschedule && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setShowBulkRescheduleDialog(true)}
+                      data-testid="bulk-reschedule-btn"
+                    >
+                      <CalendarDays className="w-4 h-4 mr-2" />
+                      Bulk Reschedule
+                    </Button>
+                  )}
+                  {canManageAppointments && (
+                    <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="export-btn">
+                      <Download className="w-4 h-4 mr-2" />
+                      Export CSV
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -850,46 +858,50 @@ export default function AdminDashboard() {
                                   <Eye className="w-4 h-4 mr-2" />
                                   View Details
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                {apt.status === 'confirmed' && !apt.checked_in && (
-                                  <DropdownMenuItem onClick={() => checkInAppointment(apt.id)}>
-                                    <UserCheck className="w-4 h-4 mr-2 text-blue-500" />
-                                    Check In
-                                  </DropdownMenuItem>
+                                {canManageAppointments && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    {apt.status === 'confirmed' && !apt.checked_in && (
+                                      <DropdownMenuItem onClick={() => checkInAppointment(apt.id)}>
+                                        <UserCheck className="w-4 h-4 mr-2 text-blue-500" />
+                                        Check In
+                                      </DropdownMenuItem>
+                                    )}
+                                    {apt.checked_in && !apt.served && apt.status !== 'completed' && (
+                                      <DropdownMenuItem onClick={() => markServed(apt.id)}>
+                                        <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
+                                        Mark Served
+                                      </DropdownMenuItem>
+                                    )}
+                                    {apt.service_type === 'card_pickup' && apt.status === 'confirmed' && (
+                                      <DropdownMenuItem onClick={() => {
+                                        setSelectedAppointment(apt);
+                                        setShowRejectDialog(true);
+                                      }}>
+                                        <Ban className="w-4 h-4 mr-2 text-orange-500" />
+                                        Reject (Card Not Ready)
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      onClick={() => updateStatus(apt.id, "cancelled")}
+                                      disabled={apt.status === "cancelled" || apt.status === "completed"}
+                                    >
+                                      <XCircle className="w-4 h-4 mr-2 text-red-500" />
+                                      Cancel
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => {
+                                        setSelectedAppointment(apt);
+                                        setShowDeleteDialog(true);
+                                      }}
+                                      className="text-red-600"
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </>
                                 )}
-                                {apt.checked_in && !apt.served && apt.status !== 'completed' && (
-                                  <DropdownMenuItem onClick={() => markServed(apt.id)}>
-                                    <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
-                                    Mark Served
-                                  </DropdownMenuItem>
-                                )}
-                                {apt.service_type === 'card_pickup' && apt.status === 'confirmed' && (
-                                  <DropdownMenuItem onClick={() => {
-                                    setSelectedAppointment(apt);
-                                    setShowRejectDialog(true);
-                                  }}>
-                                    <Ban className="w-4 h-4 mr-2 text-orange-500" />
-                                    Reject (Card Not Ready)
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem 
-                                  onClick={() => updateStatus(apt.id, "cancelled")}
-                                  disabled={apt.status === "cancelled" || apt.status === "completed"}
-                                >
-                                  <XCircle className="w-4 h-4 mr-2 text-red-500" />
-                                  Cancel
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => {
-                                    setSelectedAppointment(apt);
-                                    setShowDeleteDialog(true);
-                                  }}
-                                  className="text-red-600"
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </td>

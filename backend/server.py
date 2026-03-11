@@ -1388,11 +1388,16 @@ async def reject_card_pickup(
     reject_data: RejectRequest,
     authorization: Optional[str] = Header(None)
 ):
-    """Reject a Card Pickup appointment with reason (card not ready)"""
-    user_info = {"sub": "system", "username": "system"}
+    """Reject a Card Pickup appointment with reason (operations_admin and super_admin only)"""
+    user_info = {"sub": "system", "username": "system", "role": "system"}
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         user_info = verify_token(token)
+    
+    # Only operations_admin and super_admin can reject
+    user_role = user_info.get('role', 'front_desk')
+    if user_role not in ['super_admin', 'operations_admin']:
+        raise HTTPException(status_code=403, detail="Only Operations Admin and Super Admin can reject appointments")
     
     # Get appointment
     appointment = await db.appointments.find_one({"id": appointment_id}, {"_id": 0})
@@ -1437,11 +1442,16 @@ async def check_in_appointment(
     appointment_id: str,
     authorization: Optional[str] = Header(None)
 ):
-    """Mark an appointment as checked in (front desk)"""
-    user_info = {"sub": "system", "username": "system"}
+    """Mark an appointment as checked in (operations_admin and super_admin only)"""
+    user_info = {"sub": "system", "username": "system", "role": "system"}
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         user_info = verify_token(token)
+    
+    # Only operations_admin and super_admin can check in
+    user_role = user_info.get('role', 'front_desk')
+    if user_role not in ['super_admin', 'operations_admin']:
+        raise HTTPException(status_code=403, detail="Only Operations Admin and Super Admin can check in appointments")
     
     appointment = await db.appointments.find_one({"id": appointment_id}, {"_id": 0})
     if not appointment:
@@ -1475,11 +1485,16 @@ async def mark_appointment_served(
     appointment_id: str,
     authorization: Optional[str] = Header(None)
 ):
-    """Mark an appointment as served/completed (front desk)"""
-    user_info = {"sub": "system", "username": "system"}
+    """Mark an appointment as served/completed (operations_admin and super_admin only)"""
+    user_info = {"sub": "system", "username": "system", "role": "system"}
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         user_info = verify_token(token)
+    
+    # Only operations_admin and super_admin can mark as served
+    user_role = user_info.get('role', 'front_desk')
+    if user_role not in ['super_admin', 'operations_admin']:
+        raise HTTPException(status_code=403, detail="Only Operations Admin and Super Admin can mark appointments as served")
     
     appointment = await db.appointments.find_one({"id": appointment_id}, {"_id": 0})
     if not appointment:
@@ -1965,34 +1980,32 @@ async def send_reschedule_notification_email(appointment: dict, new_date: str, n
 # Initialize default admin user on startup
 @app.on_event("startup")
 async def create_default_admin():
-    """Create default admin user if not exists"""
-    existing_admin = await db.admin_users.find_one({"username": "admin"})
-    if not existing_admin:
-        password_hash = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
+    """Create default admin user if not exists and deactivate old admin"""
+    # Check if Paul Kasawuli exists, if not create him
+    paul_admin = await db.admin_users.find_one({"username": "pkasawuli"})
+    if not paul_admin:
+        password_hash = bcrypt.hashpw("Paul@2026!".encode(), bcrypt.gensalt()).decode()
         admin = {
             "id": str(uuid.uuid4()),
-            "username": "admin",
+            "username": "pkasawuli",
             "password_hash": password_hash,
-            "email": "admin@ugandahighcommission.co.uk",
-            "full_name": "System Administrator",
+            "email": "paul.kasawuli@nira.go.ug",
+            "full_name": "Paul Kasawuli",
             "role": "super_admin",
             "active": True,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.admin_users.insert_one(admin)
-        logger.info("Default admin user created (username: admin, password: admin123, role: super_admin)")
-    else:
-        # Update existing admin to have super_admin role if missing
-        if not existing_admin.get('role'):
-            await db.admin_users.update_one(
-                {"username": "admin"},
-                {"$set": {
-                    "role": "super_admin",
-                    "full_name": existing_admin.get("full_name", "System Administrator"),
-                    "email": existing_admin.get("email", "admin@ugandahighcommission.co.uk")
-                }}
-            )
-            logger.info("Default admin user updated with super_admin role")
+        logger.info("Primary admin user created (username: pkasawuli, role: super_admin)")
+    
+    # Deactivate the old 'admin' account if it exists
+    old_admin = await db.admin_users.find_one({"username": "admin"})
+    if old_admin and old_admin.get('active', True):
+        await db.admin_users.update_one(
+            {"username": "admin"},
+            {"$set": {"active": False}}
+        )
+        logger.info("Old admin account deactivated")
 
 # Include the router in the main app
 app.include_router(api_router)
