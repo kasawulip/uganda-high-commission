@@ -1751,6 +1751,45 @@ async def create_admin_user(user_data: AdminUserCreate, authorization: Optional[
     
     return {"message": "User created successfully", "user_id": new_user['id']}
 
+@api_router.delete("/admin/users/{user_id}")
+async def delete_admin_user(
+    user_id: str,
+    authorization: Optional[str] = Header(None)
+):
+    """Delete an admin user (super admin only)"""
+    user_info = {"sub": "system", "username": "system", "role": "system"}
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        user_info = verify_token(token)
+    
+    # Only super admin can delete users
+    if user_info.get('role') != 'super_admin':
+        raise HTTPException(status_code=403, detail="Only super admin can delete users")
+    
+    # Find the user
+    user = await db.admin_users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Prevent deleting yourself
+    if user.get('username') == user_info.get('username'):
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    
+    # Delete the user
+    await db.admin_users.delete_one({"id": user_id})
+    
+    # Log audit
+    await log_audit(
+        user_info.get('sub', 'system'),
+        user_info.get('username', 'system'),
+        "delete_user",
+        "admin_user",
+        user_id,
+        {"deleted_username": user.get('username'), "deleted_role": user.get('role')}
+    )
+    
+    return {"message": f"User {user.get('username')} deleted successfully"}
+
 # Reports Routes
 @api_router.get("/admin/reports/daily-worklist")
 async def get_daily_worklist(
